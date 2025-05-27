@@ -12,6 +12,7 @@ import cv2
 import numpy as np
 from flask import Flask, request, jsonify, render_template, Response
 import smbus2
+import RPi.GPIO as GPIO
 from RPLCD.i2c import CharLCD
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
@@ -21,7 +22,9 @@ app = Flask(__name__, template_folder='templates', static_folder='static')
 # —————————————————————
 SERIAL_PORT    = '/dev/ttyACM0'
 BAUDRATE       = 115200
-
+RELAY_GPIO = 17
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(RELAY_GPIO, GPIO.OUT)
 
 detections = []
 
@@ -339,5 +342,6 @@ def git_pull():
     
 if __name__ == '__main__':
     lcd_status("SERVER START")
+    GPIO.output(RELAY_GPIO, GPIO.HIGH)
     lcd_speed(current_speed)
     app.run(host='0.0.0.0', port=5000, threaded=True)
