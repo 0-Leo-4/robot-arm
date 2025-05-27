@@ -246,6 +246,29 @@ def run_queue():
     app.config['command_queue'] = []
     return jsonify(status='queue_run')
 
+@app.route('/api/reboot_pi', methods=['POST'])
+def reboot_pi():
+    """Riavvia il Raspberry Pi."""
+    try:
+        threading.Thread(target=lambda: os.system('sudo reboot')).start()
+        return jsonify(status='rebooting')
+    except Exception as e:
+        return jsonify(status='error', error=str(e)), 500
+
+@app.route('/api/reboot_pico', methods=['POST'])
+def reboot_pico():
+    """Riavvia il Pico tramite reset della seriale."""
+    global pico
+    try:
+        if pico:
+            pico.setDTR(False)
+            time.sleep(0.2)
+            pico.setDTR(True)
+            time.sleep(0.2)
+        return jsonify(status='rebooted')
+    except Exception as e:
+        return jsonify(status='error', error=str(e)), 500
+
 if __name__ == '__main__':
     lcd_status("SERVER START")
     lcd_speed(current_speed)
