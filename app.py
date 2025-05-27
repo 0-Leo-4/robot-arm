@@ -43,9 +43,10 @@ lcd = CharLCD(
 )
 
 def lcd_status(msg: str):
-    """Mostra sulla prima riga il messaggio."""
-    lcd.clear()
-    lcd.write_string(msg[:LCD_COLUMNS])
+    """Mostra sulla prima riga il messaggio e aggiorna la seconda con la velocità."""
+    lcd.cursor_pos = (0, 0)
+    lcd.write_string(msg[:LCD_COLUMNS].ljust(LCD_COLUMNS))
+    lcd_speed(current_speed)
 
 def lcd_speed(sp: int):
     """Aggiorna la seconda riga con la velocità."""
