@@ -12,7 +12,7 @@ import cv2
 import numpy as np
 from flask import Flask, request, jsonify, render_template, Response
 import smbus2
-import RPi.GPIO as GPIO
+from gpiozero import OutputDevice
 from RPLCD.i2c import CharLCD
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
@@ -23,8 +23,8 @@ app = Flask(__name__, template_folder='templates', static_folder='static')
 SERIAL_PORT    = '/dev/ttyACM0'
 BAUDRATE       = 115200
 RELAY_GPIO = 17
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(RELAY_GPIO, GPIO.OUT)
+relay = OutputDevice(17)
+
 
 detections = []
 
@@ -254,18 +254,18 @@ def homing():
 def stop():
     global emergency_active
     emergency_active = True
-    try_write({"cmd":"stop"})
+    try_write({"cmd": "stop"})
     # Imposta GPIO 17 HIGH (relè ON)
-    GPIO.output(RELAY_GPIO, GPIO.HIGH)
+    relay.on()
     return jsonify(status='stopped')
 
 @app.route('/api/reset', methods=['POST'])
 def reset_alarm():
     global emergency_active
     emergency_active = False
-    try_write({"cmd":"reset"})
+    try_write({"cmd": "reset"})
     # Imposta GPIO 17 LOW (relè OFF)
-    GPIO.output(RELAY_GPIO, GPIO.LOW)
+    relay.off()
     return jsonify(status='reset')
 
 @app.route('/api/gpio', methods=['POST'])
@@ -278,9 +278,20 @@ def set_gpio():
     pin = int(data.get('pin', 17))
     state = int(data.get('state', 0))
     try:
-        GPIO.setup(pin, GPIO.OUT)
-        GPIO.output(pin, GPIO.HIGH if state else GPIO.LOW)
-        return jsonify(status='ok', pin=pin, state=state)
+        if pin == RELAY_GPIO:
+            if state:
+                relay.on()
+            else:
+                relay.off()
+            return jsonify(status='ok', pin=pin, state=state)
+        else:
+            # Per altri pin, usa gpiozero dinamicamente
+            dev = OutputDevice(pin)
+            if state:
+                dev.on()
+            else:
+                dev.off()
+            return jsonify(status='ok', pin=pin, state=state)
     except Exception as e:
         return jsonify(status='error', error=str(e)), 500
 
@@ -361,6 +372,6 @@ def git_pull():
     
 if __name__ == '__main__':
     lcd_status("SERVER START")
-    GPIO.output(RELAY_GPIO, GPIO.HIGH)
     lcd_speed(current_speed)
     app.run(host='0.0.0.0', port=5000, threaded=True)
+    relay.on()
