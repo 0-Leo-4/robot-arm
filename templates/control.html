@@ -113,12 +113,28 @@
     // Speed
     const spR = document.getElementById('speedRange'),
           spV = document.getElementById('speedVal');
-    // Aggiorna l'handler dello slider
+    let speedDebounce = null;
+
     spR.oninput = () => {
-        const v = +spR.value;
-        spV.textContent = v + '%';
-        currentSpeed = v;  // Mantieni una variabile globale per la velocità
-        axios.post('/api/set_speed', {speed_pct: v});
+      // aggiorna immediatamente la UI
+      const v = +spR.value;
+      spV.textContent = v + '%';
+
+      // debounce: invoca la chiamata 100ms dopo l'ultimo input
+      clearTimeout(speedDebounce);
+      speedDebounce = setTimeout(() => {
+        axios.post('/api/set_speed', { speed_pct: v })
+          .then(r => {
+            if (r.data.status === 'ok') {
+              log(`Speed settata → ${v}%`);
+            } else {
+              log(`set_speed risponde errore: ${r.data.error||r.data.status}`);
+            }
+          })
+          .catch(err => {
+            log(`Errore settando velocità: ${err}`);
+          });
+      }, 100);
     };
 
     // Reboot Pi5
@@ -161,15 +177,11 @@
     };
 
     // Jog helper
-    function startJog(a, m){
-        axios.post('/api/jog', {
-            axis: a,
-            jog: m,  // Invia come parametro jog invece di mm
-            speed_pct: currentSpeed  // Aggiungi parametro velocità
-        })
-        .then(r => log(`Jog ${a} ${m>0?'+':'-'}1 → ${r.data.status}`))
-        .catch(e => log('Error: '+e));
-        repeatId = setTimeout(() => startJog(a, m), 200);
+    function startJog(a,m){
+      axios.post('/api/jog',{axis:a,mm:m})
+        .then(r=>log(`Jog ${a} ${m>0?'+':'-'}1 → ${r.data.status}`))
+        .catch(e=>log('Error: '+e));
+      repeatId = setTimeout(()=> startJog(a,m), 200);
     }
     function stopJog(){ clearTimeout(repeatId); repeatId = null; }
 
