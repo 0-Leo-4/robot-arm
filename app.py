@@ -7,6 +7,8 @@ import json
 import sys
 import os
 import math
+import shutil
+from werkzeug.utils import secure_filename
 
 from flask import Flask, request, jsonify, render_template
 import smbus2
@@ -19,6 +21,7 @@ app = Flask(__name__, template_folder='templates', static_folder='static')
 # —————————————————————
 SERIAL_PORT    = '/dev/ttyACM0'
 BAUDRATE       = 115200
+PICO_MOUNT_PATH = "/media/pi/RPI-RP2"  # Path di mount del Pico
 
 # LCD HD44780 via PCF8574 su I²C bus 1
 LCD_I2C_ADDR   = 0x27   # modifica se diverso
@@ -294,6 +297,69 @@ def git_pull():
         return jsonify(status=status, output=output)
     except Exception as e:
         return jsonify(status='error', output=str(e)), 500
+    
+    
+@app.route('/editor')
+def editor():
+    return render_template('editor.html')
+
+@app.route('/api/pico/files')
+def list_pico_files():
+    try:
+        files = os.listdir(PICO_MOUNT_PATH)
+        return jsonify({"files": files})
+    except FileNotFoundError:
+        return jsonify({"error": "Pico non montato"}), 404
+
+@app.route('/api/pico/file/<path:filename>', methods=['GET', 'POST', 'DELETE'])
+def manage_file(filename):
+    safe_path = os.path.join(PICO_MOUNT_PATH, secure_filename(filename))
+    
+    if request.method == 'GET':
+        try:
+            with open(safe_path, 'r') as f:
+                return jsonify({"content": f.read()})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+            
+    elif request.method == 'POST':
+        content = request.json.get('content', '')
+        try:
+            with open(safe_path, 'w') as f:
+                f.write(content)
+            return jsonify({"status": "saved"})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+            
+    elif request.method == 'DELETE':
+        try:
+            if os.path.isdir(safe_path):
+                shutil.rmtree(safe_path)
+            else:
+                os.remove(safe_path)
+            return jsonify({"status": "deleted"})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+@app.route('/api/pico/umount', methods=['POST'])
+def umount_pico():
+    subprocess.run(["sudo", "umount", PICO_MOUNT_PATH], check=True)
+    return jsonify({"status": "umounted"})
+
+@app.route('/api/pico/reset', methods=['POST'])
+def reset_pico():
+    try:
+        # Chiude la connessione seriale
+        global pico
+        if pico:
+            pico.close()
+            pico = None
+        
+        # Resetta il Pico in modalità bootloader
+        subprocess.run(["picotool", "reboot", "-u", "-f"], check=True)
+        return jsonify({"status": "reset"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
     
 if __name__ == '__main__':
     lcd_status("SERVER START")
