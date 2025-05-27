@@ -214,11 +214,14 @@
       })
       .catch(e => log('Error: '+e));
     };
+
+    // Reset
     document.getElementById('btnReset').onclick = () => {
       axios.post('/api/reset')
       .then(r => { 
       log('RESET → ' + r.data.status); 
-      setUI(true); 
+      setUI(true);
+      document.getElementById('btnEnableMotors').disabled = true;
       // Cambia stato GPIO (usa gpiozero lato server)
       axios.post('/api/gpiozero', { pin: 17, state: 0 })
         .then(r => log('GPIOZero 17 → LOW'))
