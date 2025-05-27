@@ -149,42 +149,28 @@
         const ctx        = canvas.getContext('2d');
         const tableBody  = document.getElementById('table-body');
 
-        // Initialize chart
+        // Initialize chart (resta invariato)
         const chartCtx = document.getElementById('chart').getContext('2d');
         const scatterChart = new Chart(chartCtx, {
             type: 'scatter',
-            data: {
-                datasets: [{
-                    label: 'Detected Pieces',
-                    backgroundColor: '#4bc0c0',
-                    data: []
-                }]
-            },
+            data: { datasets: [{ label: 'Detected Pieces', backgroundColor: '#4bc0c0', data: [] }] },
             options: {
                 scales: {
-                    x: { 
-                        title: { display: true, text: 'X (px)' }, 
-                        beginAtZero: true 
-                    },
-                    y: { 
-                        title: { display: true, text: 'Y (px)' }, 
-                        beginAtZero: true 
-                    }
+                    x: { title: { display: true, text: 'X (px)' }, beginAtZero: true },
+                    y: { title: { display: true, text: 'Y (px)' }, beginAtZero: true }
                 },
-                plugins: {
-                    legend: { display: false }
-                }
+                plugins: { legend: { display: false } }
             }
         });
 
-        // Handle canvas resizing: interna = naturale, CSS = client
+        // Imposta il canvas alle dimensioni di visualizzazione
         function updateCanvasSize() {
-            // dimensione interna = risoluzione naturale del video
-            canvas.width  = videoImage.naturalWidth;
-            canvas.height = videoImage.naturalHeight;
-            // dimensione CSS = dimensione effettiva in pagina
-            canvas.style.width  = videoImage.clientWidth  + 'px';
-            canvas.style.height = videoImage.clientHeight + 'px';
+            const w = videoImage.clientWidth;
+            const h = videoImage.clientHeight;
+            canvas.width  = w;
+            canvas.height = h;
+            canvas.style.width  = w + 'px';
+            canvas.style.height = h + 'px';
         }
 
         videoImage.onload = () => {
@@ -199,21 +185,31 @@
             document.getElementById("fps-label").textContent = `FPS: ${fps}`;
             document.getElementById("fps-value").textContent = fps;
 
-            // Pulisce il canvas (in risoluzione naturale)
+            // Clear canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Compute scale factors from natural→display
+            const scaleX = canvas.width  / videoImage.naturalWidth;
+            const scaleY = canvas.height / videoImage.naturalHeight;
+
             ctx.strokeStyle = '#00ffff';
             ctx.lineWidth   = 2;
             ctx.font        = '16px Arial';
             ctx.fillStyle   = '#ffffff';
 
-            // Disegna direttamente usando x,y,r naturali
+            // Draw each detection
             const sorted = detections.slice().sort((a, b) => a.x - b.x);
             sorted.forEach((det, idx) => {
                 const label = idx + 1;
+                // Translate to canvas coords
+                const x = det.x * scaleX;
+                const y = det.y * scaleY;
+                const r = det.r * ((scaleX + scaleY) / 2);
+
                 ctx.beginPath();
-                ctx.arc(det.x, det.y, det.r, 0, 2 * Math.PI);
+                ctx.arc(x, y, r, 0, 2 * Math.PI);
                 ctx.stroke();
-                ctx.fillText(label.toString(), det.x + det.r + 5, det.y - det.r - 5);
+                ctx.fillText(label.toString(), x + r + 5, y - r - 5);
             });
 
             updateTableAndChart(detections);
@@ -228,19 +224,16 @@
                 const label = idx + 1;
                 const xi    = Math.round(det.x);
                 const yi    = Math.round(det.y);
-
                 const row = document.createElement('tr');
                 row.innerHTML = `<td>${label}</td><td>${xi}</td><td>${yi}</td>`;
                 tableBody.appendChild(row);
-
                 scatterChart.data.datasets[0].data.push({ x: xi, y: yi });
             });
-
             scatterChart.update();
         }
 
-        // Avvia aggiornamenti ogni 100 ms
         setInterval(updateDetections, 100);
     </script>
+
 </body>
 </html>
