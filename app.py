@@ -272,7 +272,7 @@ def enable_motors():
     Abilita i motori attivando il relè su GPIO 17.
     """
     try:
-        relay.on()
+        relay.off()
         return jsonify(status='enabled')
     except Exception as e:
         return jsonify(status='error', error=str(e)), 500
