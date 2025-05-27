@@ -14,6 +14,7 @@ from flask import Flask, request, jsonify, render_template, Response
 import smbus2
 from gpiozero import OutputDevice
 from RPLCD.i2c import CharLCD
+from scipy.optimize import linear_sum_assignment
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
@@ -25,6 +26,9 @@ BAUDRATE       = 115200
 RELAY_GPIO = 17
 relay = OutputDevice(17, active_high=False, initial_value=True)
 detections = []
+next_circle_id = 1
+tracked_circles = {}   # { id: {"x":…, "y":…, "r":…} }
+max_lost_distance = 50  # px oltre i quali consideriamo sparito
 
 # LCD HD44780 via PCF8574 su I²C bus 1
 LCD_I2C_ADDR   = 0x27   # modifica se diverso
@@ -128,36 +132,61 @@ def try_write(cmd: dict):
         except Exception:
             pico.close(); pico = None
 
-next_circle_id = 1
-tracked_circles = {}
-def assign_ids_to_circles(new_circles, threshold=50):
+def assign_ids_to_circles(new_circles):
+    """
+    new_circles: list di dict {"x":float, "y":float, "r":float}
+    Restituisce lista di dict {"id":int, "x":…, "y":…, "r":…}
+    """
     global tracked_circles, next_circle_id
 
-    updated = []
-    used = set()
-
-    for nc in new_circles:
-        x, y, r = nc["x"], nc["y"], nc["r"]
-        assigned = None
-
-        # matching sul float, con soglia più ampia
-        for cid, old in tracked_circles.items():
-            d = math.hypot(x - old["x"], y - old["y"])
-            if d < threshold and cid not in used:
-                assigned = cid
-                used.add(cid)
-                break
-
-        if assigned is None:
-            assigned = next_circle_id
+    # Se non ci sono precedenti, assegna ID incrementali
+    if not tracked_circles:
+        results = []
+        for nc in new_circles:
+            cid = next_circle_id
             next_circle_id += 1
+            tracked_circles[cid] = nc.copy()
+            results.append({"id": cid, **nc})
+        return results
 
-        tracked_circles[assigned] = {"x": x, "y": y, "r": r}
-        updated.append({"id": assigned, "x": x, "y": y, "r": r})
+    # Costruisci matrici per il cost matrix
+    old_ids = list(tracked_circles.keys())
+    old_pts = [tracked_circles[cid] for cid in old_ids]
+    new_pts = new_circles
 
-    # elimina quelli non visti
-    tracked_circles = {c["id"]: {"x":c["x"], "y":c["y"], "r":c["r"]} for c in updated}
-    return updated
+    cost = np.zeros((len(old_pts), len(new_pts)), dtype=float)
+    for i, op in enumerate(old_pts):
+        for j, np_ in enumerate(new_pts):
+            cost[i, j] = math.hypot(op["x"] - np_["x"], op["y"] - np_["y"])
+
+    # Hungarian assignment
+    row_idx, col_idx = linear_sum_assignment(cost)
+
+    assigned = {}
+    results = []
+
+    # Match existing
+    for i, j in zip(row_idx, col_idx):
+        if cost[i, j] < max_lost_distance:
+            cid = old_ids[i]
+            nc = new_pts[j]
+            tracked_circles[cid] = nc.copy()
+            assigned[j] = cid
+            results.append({"id": cid, **nc})
+
+    # New detections senza match → nuovi ID
+    for j, nc in enumerate(new_pts):
+        if j not in assigned:
+            cid = next_circle_id
+            next_circle_id += 1
+            tracked_circles[cid] = nc.copy()
+            results.append({"id": cid, **nc})
+
+    # Rimuove i perduti: quelli vecchi non matchati
+    kept_ids = {obj["id"] for obj in results}
+    tracked_circles = {cid: tracked_circles[cid] for cid in kept_ids}
+
+    return results
 
 def capture_and_detect():
     global detections, fps, latest_frame
@@ -181,10 +210,11 @@ def capture_and_detect():
         # Update detections
         curr = []
         if circles is not None:
-            for x, y, r in circles[0]:   # qui x,y,r sono float
+            # prendi i valori float diretti
+            for x, y, r in circles[0]:
                 curr.append({"x": float(x), "y": float(y), "r": float(r)})
 
-        tracked = assign_ids_to_circles(curr)  
+        tracked = assign_ids_to_circles(curr)
 
         with lock:
             detections = tracked
