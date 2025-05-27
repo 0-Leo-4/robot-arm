@@ -46,16 +46,16 @@
       <div class="card-header">Settings</div>
       <div class="card-body">
       <div class="mb-2">
-        <button id="btnRebootPi" class="btn btn-info me-2 mb-2">Reboot Pi5</button>
+        <button id="btnRebootPi"   class="btn btn-info me-2 mb-2">Reboot Pi5</button>
         <button id="btnRebootPico" class="btn btn-info mb-2">Reboot Pico</button>
       </div>
       <div class="mb-2">
-        <button id="btnDiscPico" class="btn btn-secondary me-2 mb-2">Disconnect Pico</button>
-        <button id="btnConnPico" class="btn btn-secondary mb-2">Reconnect Pico</button>
+        <button id="btnDiscPico"   class="btn btn-secondary me-2 mb-2">Disconnect Pico</button>
+        <button id="btnConnPico"   class="btn btn-secondary mb-2">Reconnect Pico</button>
       </div>
       <div>
-        <button id="btnGitPull" class="btn btn-info me-2">Pull Updates</button>
-        <button id="btnEditCode" class="btn btn-info">Edit Pico Code</button>
+        <button id="btnGitPull" class="btn btn-info">Pull Updates</button>
+        <button id="btnEditCode" class="btn btn-info mb-2">Edit Pico Code</button>
       </div>
       </div>
     </div>
@@ -72,7 +72,7 @@
     <!-- Homing & Grip -->
     <div class="mb-3">
       <button id="btnHoming" class="btn btn-warning me-2">Homing</button>
-      <button id="btnOpen" class="btn btn-secondary me-1">Open Grip</button>
+      <button id="btnOpen"  class="btn btn-secondary me-1">Open Grip</button>
       <button id="btnClose" class="btn btn-secondary">Close Grip</button>
     </div>
 
@@ -89,7 +89,7 @@
 
     <!-- Emergency -->
     <div class="mb-4">
-      <button id="btnStop" class="btn btn-danger me-2">STOP</button>
+      <button id="btnStop"  class="btn btn-danger me-2">STOP</button>
       <button id="btnReset" class="btn btn-warning">RESET</button>
     </div>
 
@@ -101,129 +101,119 @@
     </div>
   </div>
 
-  <!-- Code Editor Modal -->
-  <div class="modal fade" id="codeModal" tabindex="-1" aria-labelledby="codeModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl">
-      <div class="modal-content bg-dark">
-        <div class="modal-header">
-          <h5 class="modal-title" id="codeModalLabel">main.py Editor</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <textarea id="codeEditor" class="form-control bg-dark text-light" style="height: 60vh; font-family: monospace;"></textarea>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="button" class="btn btn-primary" id="btnSaveCode">Save Changes</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    const logEl = document.getElementById('log');
+    const logEl  = document.getElementById('log');
     let repeatId = null;
-
-    function log(msg) {
+    function log(msg){
       logEl.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + logEl.textContent;
     }
-
-    function setUI(on) {
-      document.querySelectorAll('button, input').forEach(el => el.disabled = !on);
+    function setUI(on){
+      document.querySelectorAll('button, input').forEach(el=>el.disabled=!on);
     }
 
-    // Speed Control
+    // Speed
     const spR = document.getElementById('speedRange'),
           spV = document.getElementById('speedVal');
     spR.oninput = () => {
       const v = +spR.value;
       spV.textContent = v + '%';
-      axios.post('/api/set_speed', { speed_pct: v });
+      axios.post('/api/set_speed', {speed_pct: v});
     };
 
-    // System Controls
+    // Reboot Pi5
     document.getElementById('btnRebootPi').onclick = () => {
       if (confirm("Reboot host (Pi5)?")) {
         axios.post('/api/reboot_pi')
-          .then(r => log('Pi5 → ' + r.data.status))
-          .catch(err => log('Error reboot Pi5: ' + err));
+             .then(r => log('Pi5 → ' + r.data.status))
+             .catch(err => log('Error reboot Pi5: ' + err));
       }
     };
 
+    // Reboot Pico
     document.getElementById('btnRebootPico').onclick = () => {
       if (confirm("Reboot Pico?")) {
         axios.post('/api/reboot_pico')
-          .then(r => log('Pico → ' + r.data.status))
-          .catch(err => log('Error reboot Pico: ' + err));
+             .then(r => log('Pico → ' + r.data.status))
+             .catch(err => log('Error reboot Pico: ' + err));
       }
     };
 
-    // Homing and Gripper
+    // Homing
     document.getElementById('btnHoming').onclick = () => {
       axios.post('/api/homing')
         .then(r => log('Homing → ' + r.data.status))
         .catch(e => log('Error: ' + e));
     };
 
+    // Gripper
     document.getElementById('btnOpen').onclick = () => {
-      axios.post('/api/upload', { commands: [{ cmd: 'grip', angle: 0 }] })
-        .then(() => axios.post('/api/run_queue'))
-        .then(r => log('Grip open'))
-        .catch(e => log('Error: ' + e));
+      axios.post('/api/upload',{commands:[{cmd:'grip',angle:0}]})
+        .then(()=> axios.post('/api/run_queue'))
+        .then(r=>log('Grip open'))
+        .catch(e=>log('Error: '+e));
     };
-
     document.getElementById('btnClose').onclick = () => {
-      axios.post('/api/upload', { commands: [{ cmd: 'grip', angle: 84 }] })
-        .then(() => axios.post('/api/run_queue'))
-        .then(r => log('Grip close'))
-        .catch(e => log('Error: ' + e));
+      axios.post('/api/upload',{commands:[{cmd:'grip',angle:84}]})
+        .then(()=> axios.post('/api/run_queue'))
+        .then(r=>log('Grip close'))
+        .catch(e=>log('Error: '+e));
     };
 
-    // Jog Controls
-    function startJog(a, m) {
-      axios.post('/api/jog', { axis: a, mm: m })
-        .then(r => log(`Jog ${a} ${m > 0 ? '+' : '-'}1 → ${r.data.status}`))
-        .catch(e => log('Error: ' + e));
-      repeatId = setTimeout(() => startJog(a, m), 200);
+    // Jog helper
+    function startJog(a,m){
+      axios.post('/api/jog',{axis:a,mm:m})
+        .then(r=>log(`Jog ${a} ${m>0?'+':'-'}1 → ${r.data.status}`))
+        .catch(e=>log('Error: '+e));
+      repeatId = setTimeout(()=> startJog(a,m), 200);
     }
+    function stopJog(){ clearTimeout(repeatId); repeatId = null; }
 
-    function stopJog() { clearTimeout(repeatId); repeatId = null; }
-
-    [['jXpos','X',1], ['jXneg','X',-1],
-     ['jYpos','Y',1], ['jYneg','Y',-1],
-     ['jZpos','Z',1], ['jZneg','Z',-1]].forEach(([id, ax, m]) => {
+    // Attach hold listeners
+    [['jXpos','X',1],['jXneg','X',-1],
+     ['jYpos','Y',1],['jYneg','Y',-1],
+     ['jZpos','Z',1],['jZneg','Z',-1]
+    ].forEach(([id,ax,m]) => {
       const btn = document.getElementById(id);
-      btn.onmousedown = () => startJog(ax, m);
-      btn.onmouseup = stopJog;
-      btn.onmouseleave = stopJog;
-      btn.ontouchstart = () => startJog(ax, m);
-      btn.ontouchend = stopJog;
+      btn.onmousedown = () => startJog(ax,m);
+      btn.onmouseup   = () => stopJog();
+      btn.onmouseleave= () => stopJog();
+      btn.ontouchstart= () => startJog(ax,m);
+      btn.ontouchend  = () => stopJog();
     });
 
-    // Emergency Controls
+    // Emergency
     document.getElementById('btnStop').onclick = () => {
       axios.post('/api/stop')
-        .then(r => {
-          log('STOP → ' + r.data.status);
-          setUI(false);
-          document.getElementById('btnReset').disabled = false;
-        })
-        .catch(e => log('Error: ' + e));
+      .then(r => { 
+        log('STOP → ' + r.data.status); 
+        setUI(false); 
+        document.getElementById('btnReset').disabled = false;
+      })
+      .catch(e => log('Error: '+e));
     };
-
     document.getElementById('btnReset').onclick = () => {
       axios.post('/api/reset')
-        .then(r => {
-          log('RESET → ' + r.data.status);
-          setUI(true);
-        })
+        .then(r => { log('RESET → ' + r.data.status); setUI(true); })
+        .catch(e => log('Error: '+e));
+    };
+
+    // Disconnect Pico
+    document.getElementById('btnDiscPico').onclick = () => {
+      axios.post('/api/disconnect_pico')
+        .then(r => log('Pico → ' + r.data.status))
         .catch(e => log('Error: ' + e));
     };
 
-    // Pico Connection Management
+    // Reconnect Pico
+    document.getElementById('btnConnPico').onclick = () => {
+      axios.post('/api/reconnect_pico')
+        .then(r => log('Pico → ' + r.data.status))
+        .catch(e => log('Error: ' + e));
+    };
+
+    // Aggiorna badge di stato Pico
     const statusEl = document.getElementById('picoStatus');
-    function updatePicoStatus() {
+    function updatePicoStatus(){
       axios.get('/api/pico_status')
         .then(r => {
           const ok = r.data.connected;
@@ -235,55 +225,34 @@
           statusEl.className = 'badge bg-warning ms-2';
         });
     }
-
-    document.getElementById('btnDiscPico').onclick = () => {
-      axios.post('/api/disconnect_pico')
-        .then(r => {
-          log('Pico → ' + r.data.status);
-          updatePicoStatus();
-        })
-        .catch(e => log('Error: ' + e));
-    };
-
-    document.getElementById('btnConnPico').onclick = () => {
-      axios.post('/api/reconnect_pico')
-        .then(r => {
-          log('Pico → ' + r.data.status);
-          updatePicoStatus();
-        })
-        .catch(e => log('Error: ' + e));
-    };
-
-    // Code Editor Functions
-    document.getElementById('btnEditCode').onclick = () => {
-      const modal = new bootstrap.Modal(document.getElementById('codeModal'));
-      axios.get('/api/get_pico_code')
-        .then(response => {
-          document.getElementById('codeEditor').value = response.data.code;
-          modal.show();
-        })
-        .catch(error => {
-          log('Error loading code: ' + error);
-          alert('Failed to load code! Check Pico connection.');
-        });
-    };
-
-    document.getElementById('btnSaveCode').onclick = () => {
-      const code = document.getElementById('codeEditor').value;
-      axios.post('/api/save_pico_code', { code: code })
-        .then(response => {
-          log('Code saved: ' + response.data.status);
-          bootstrap.Modal.getInstance(document.getElementById('codeModal')).hide();
-        })
-        .catch(error => {
-          log('Error saving code: ' + error);
-          alert('Failed to save code!');
-        });
-    };
-
-    // Initialization
+    // Richiama subito e poi ogni 5 secondi
     updatePicoStatus();
     setInterval(updatePicoStatus, 1000);
+
+    // Quando fai disconnect/reconnect aggiorna subito
+    document.getElementById('btnDiscPico').onclick = () => {
+      axios.post('/api/disconnect_pico')
+        .then(r => { log('Pico → '+r.data.status); updatePicoStatus(); })
+        .catch(e => log('Error: '+e));
+    };
+    document.getElementById('btnConnPico').onclick = () => {
+      axios.post('/api/reconnect_pico')
+        .then(r => { log('Pico → '+r.data.status); updatePicoStatus(); })
+        .catch(e => log('Error: '+e));
+    };
+
+    // Pull updates da Git
+    document.getElementById('btnGitPull').onclick = () => {
+      if (confirm("Eseguire git pull e riavviare l’app?")) {
+        axios.post('/api/git_pull')
+          .then(r => {
+            log('Git Pull → ' + r.data.status);
+            log(r.data.output);
+            // qui eventualmente riavvii il server o mostri istruzioni
+          })
+          .catch(e => log('Error git pull: ' + e));
+      }
+    };
     setUI(true);
   </script>
 </body>

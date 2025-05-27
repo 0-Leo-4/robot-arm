@@ -295,24 +295,6 @@ def git_pull():
     except Exception as e:
         return jsonify(status='error', output=str(e)), 500
     
-@app.route('/api/get_pico_code')
-def get_pico_code():
-    try:
-        with open('/media/pi/RPI-RP2/main.py', 'r') as f:
-            return jsonify({'code': f.read()})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/save_pico_code', methods=['POST'])
-def save_pico_code():
-    try:
-        code = request.json.get('code', '')
-        with open('/media/pi/RPI-RP2/main.py', 'w') as f:
-            f.write(code)
-        return jsonify({'status': 'Code saved successfully'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-    
 if __name__ == '__main__':
     lcd_status("SERVER START")
     lcd_speed(current_speed)
