@@ -23,7 +23,7 @@ app = Flask(__name__, template_folder='templates', static_folder='static')
 SERIAL_PORT    = '/dev/ttyACM0'
 BAUDRATE       = 115200
 RELAY_GPIO = 17
-relay = OutputDevice(17)
+relay = OutputDevice(17, active_high=False, initial_value=False)
 detections = []
 
 # LCD HD44780 via PCF8574 su I²C bus 1
