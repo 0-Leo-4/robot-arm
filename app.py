@@ -7,8 +7,6 @@ import json
 import sys
 import os
 import math
-import shutil
-from werkzeug.utils import secure_filename
 
 from flask import Flask, request, jsonify, render_template
 import smbus2
@@ -21,7 +19,11 @@ app = Flask(__name__, template_folder='templates', static_folder='static')
 # —————————————————————
 SERIAL_PORT    = '/dev/ttyACM0'
 BAUDRATE       = 115200
-PICO_MOUNT_PATH = "/media/pi/RPI-RP2"  # Path di mount del Pico
+
+ser = serial.Serial()
+ser.port = SERIAL_PORT
+ser.baudrate = BAUDRATE
+ser.timeout = 1
 
 # LCD HD44780 via PCF8574 su I²C bus 1
 LCD_I2C_ADDR   = 0x27   # modifica se diverso
@@ -33,6 +35,8 @@ I2C_PORT       = 1
 emergency_active = False
 current_speed    = 100
 lock             = threading.Lock()
+log_lines = []
+log_lock = threading.Lock()
 
 # —————————————————————
 #  INIZIALIZZA LCD via RPLCD
@@ -297,71 +301,77 @@ def git_pull():
         return jsonify(status=status, output=output)
     except Exception as e:
         return jsonify(status='error', output=str(e)), 500
-    
-    
-@app.route('/editor')
-def editor():
-    return render_template('editor.html')
 
-@app.route('/api/pico/files')
-def list_pico_files():
-    try:
-        files = os.listdir(PICO_MOUNT_PATH)
-        return jsonify({"files": files})
-    except FileNotFoundError:
-        return jsonify({"error": "Pico non montato"}), 404
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-@app.route('/api/pico/file/<path:filename>', methods=['GET', 'POST', 'DELETE'])
-def manage_file(filename):
-    safe_path = os.path.join(PICO_MOUNT_PATH, secure_filename(filename))
-    
-    if request.method == 'GET':
-        try:
-            with open(safe_path, 'r') as f:
-                return jsonify({"content": f.read()})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-            
-    elif request.method == 'POST':
-        content = request.json.get('content', '')
-        try:
-            with open(safe_path, 'w') as f:
-                f.write(content)
-            return jsonify({"status": "saved"})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-            
-    elif request.method == 'DELETE':
-        try:
-            if os.path.isdir(safe_path):
-                shutil.rmtree(safe_path)
-            else:
-                os.remove(safe_path)
-            return jsonify({"status": "deleted"})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+@app.route('/api/move', methods=['POST'])
+def move():
+    data = request.get_json()
+    command = f"move {data['x']} {data['y']} {data['z']}\n"
+    send_command(command)
+    return jsonify({'status': 'ok'})
 
-@app.route('/api/pico/umount', methods=['POST'])
-def umount_pico():
-    subprocess.run(["sudo", "umount", PICO_MOUNT_PATH], check=True)
-    return jsonify({"status": "umounted"})
+@app.route('/api/grip_open', methods=['POST'])
+def grip_open():
+    send_command("grip open\n")
+    return jsonify({'status': 'ok'})
 
-@app.route('/api/pico/reset', methods=['POST'])
-def reset_pico():
-    try:
-        # Chiude la connessione seriale
-        global pico
-        if pico:
-            pico.close()
-            pico = None
-        
-        # Resetta il Pico in modalità bootloader
-        subprocess.run(["picotool", "reboot", "-u", "-f"], check=True)
-        return jsonify({"status": "reset"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    
+@app.route('/api/grip_close', methods=['POST'])
+def grip_close():
+    send_command("grip close\n")
+    return jsonify({'status': 'ok'})
+
+@app.route('/api/files', methods=['GET'])
+def list_files():
+    files = os.listdir('pico_files')
+    return jsonify(files)
+
+@app.route('/api/file/<filename>', methods=['GET'])
+def get_file(filename):
+    with open(os.path.join('pico_files', filename), 'r') as f:
+        return f.read()
+
+@app.route('/api/file/<filename>', methods=['POST'])
+def save_file(filename):
+    content = request.data.decode('utf-8')
+    with open(os.path.join('pico_files', filename), 'w') as f:
+        f.write(content)
+    return jsonify({'status': 'saved'})
+
+@app.route('/api/file/<filename>', methods=['DELETE'])
+def delete_file(filename):
+    os.remove(os.path.join('pico_files', filename))
+    return jsonify({'status': 'deleted'})
+
+def send_command(cmd):
+    if not ser.is_open:
+        ser.open()
+    ser.write(cmd.encode())
+
+def read_serial():
+    while True:
+        if ser.is_open and ser.in_waiting:
+            line = ser.readline().decode(errors='ignore').strip()
+            with log_lock:
+                log_lines.append(line)
+                if len(log_lines) > 100:
+                    log_lines.pop(0)
+        time.sleep(0.1)
+
+@app.route('/api/log', methods=['GET'])
+def get_log():
+    with log_lock:
+        return jsonify(log_lines)
+
 if __name__ == '__main__':
     lcd_status("SERVER START")
     lcd_speed(current_speed)
-    app.run(host='0.0.0.0', port=5000, threaded=True)
+    if not os.path.exists('pico_files'):
+        os.makedirs('pico_files')
+
+    t = threading.Thread(target=read_serial, daemon=True)
+    t.start()
+
+    app.run(host='0.0.0.0', port=5000, debug=True)
