@@ -179,8 +179,12 @@
 
         // Handle canvas resizing
         function updateCanvasSize() {
-            canvas.width = videoImage.clientWidth;
-            canvas.height = videoImage.clientHeight;
+            // Imposta il canvas alle dimensioni originali del video
+            canvas.width  = videoImage.naturalWidth;
+            canvas.height = videoImage.naturalHeight;
+            // Fai scalare il canvas via CSS in sincronia con <img>
+            canvas.style.width  = videoImage.clientWidth + 'px';
+            canvas.style.height = videoImage.clientHeight + 'px';
         }
 
         videoImage.onload = () => {
@@ -202,48 +206,54 @@
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // calcola scale X/Y indipendenti
-            const scaleX = canvas.width / videoImage.naturalWidth;
-            const scaleY = canvas.height / videoImage.naturalHeight;
-            const rScale = (scaleX + scaleY) / 2;
+            // 1) ordina orizzontalmente
+            const sorted = detections.slice().sort((a, b) => a.x - b.x);
 
+            // 2) disegna cerchi e numeri
             ctx.strokeStyle = '#00ffff';
-            ctx.lineWidth = 2;
-            ctx.font = '14px Arial';
-            ctx.fillStyle = '#ffffff';
+            ctx.lineWidth   = 2;
+            ctx.font        = '16px Arial';
+            ctx.fillStyle   = '#ffffff';
 
-            detections.forEach(det => {
-                const id = det.id;
-                const x = det.x * scaleX;
-                const y = det.y * scaleY;
-                const r = det.r * rScale;
+            sorted.forEach((det, idx) => {
+                const label = idx + 1;           // etichetta 1…N
+                const x     = det.x;             // ora canvas è in natural coords
+                const y     = det.y;
+                const r     = det.r;
 
                 ctx.beginPath();
                 ctx.arc(x, y, r, 0, 2 * Math.PI);
                 ctx.stroke();
-                ctx.fillText(`ID:${id}`, x + 5, y - 5);
+
+                ctx.fillText(label.toString(), x + 5, y - 5);
             });
 
             updateTableAndChart(detections);
         }
-
 
         // Update table and chart data
         function updateTableAndChart(detections) {
             tableBody.innerHTML = '';
             scatterChart.data.datasets[0].data = [];
 
-            detections.forEach((det) => {
-                const id = det.id;
+            // stesso ordinamento sinistra→destra
+            const sorted = detections.slice().sort((a, b) => a.x - b.x);
+
+            sorted.forEach((det, idx) => {
+                const label = idx + 1;
+                // arrotonda le coordinate a interi
+                const xi = Math.round(det.x);
+                const yi = Math.round(det.y);
+
                 const row = document.createElement('tr');
-                row.innerHTML = `<td>ID:${id}</td><td>${det.x}</td><td>${det.y}</td>`;
+                row.innerHTML = `<td>${label}</td><td>${xi}</td><td>${yi}</td>`;
                 tableBody.appendChild(row);
-                scatterChart.data.datasets[0].data.push({ x: det.x, y: det.y });
+
+                scatterChart.data.datasets[0].data.push({ x: xi, y: yi });
             });
 
             scatterChart.update();
         }
-
         // Start periodic updates
         setInterval(updateDetections, 100);
     </script>
