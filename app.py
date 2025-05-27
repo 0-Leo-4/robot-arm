@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify, render_template
-import threading, serial, time, json, sys, os, math, busio
-from board import SCL, SDA
+import threading, serial, time, json, sys, os, math
+import smbus2
 from i2c_lcd import I2cLcd
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
@@ -10,6 +10,7 @@ app = Flask(__name__, template_folder='templates', static_folder='static')
 # —————————————————————
 SERIAL_PORT = '/dev/ttyACM0'
 BAUDRATE    = 115200
+LCD_I2C_ADDR = 0x27
 
 # stato globale
 emergency_active = False
@@ -21,9 +22,8 @@ lock             = threading.Lock()
 # —————————————————————
 #  INIZIALIZZA LCD I²C
 # —————————————————————
-i2c_bus = busio.I2C(SCL, SDA)
-# indovina addr (tipicamente 0x27)
-lcd = I2cLcd(i2c_bus, lcd_addr=0x27, rows=2, cols=16)
+i2c_bus = smbus2.SMBus(1)
+lcd = I2cLcd(i2c_bus, LCD_I2C_ADDR, rows=2, cols=16)
 def lcd_clear():
     lcd.clear()
 def lcd_status(msg):
@@ -69,18 +69,24 @@ threading.Thread(target=monitor_pico, daemon=True).start()
 #  HANDLER SERIALE → LCD
 # —————————————————————
 def lcd_handler():
-    global pico
+    """Legge dal Pico via seriale e aggiorna l’I²C-LCD."""
+    ser = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=0.1)
     while True:
-        if pico:
-            line = pico.readline().decode(errors='ignore').strip()
-            if line.startswith("STATUS|"):
-                _, m = line.split("|",1)
-                lcd_status(m)
-            elif line.startswith("SPEED|"):
-                _, s = line.split("|",1)
-                lcd_speed(s)
+        line = ser.readline().decode().strip()
+        if not line:
+            continue
+        if line.startswith("STATUS|"):
+            msg = line.split("|",1)[1]
+            lcd.clear()
+            lcd.putstr(msg[:16])
+        elif line.startswith("SPEED|"):
+            sp = line.split("|",1)[1]
+            lcd.move_to(0,1)
+            lcd.putstr(f"Spd:{sp}%".ljust(16))
+        # piccolo delay per non saturare la CPU
         time.sleep(0.01)
 
+# Avvia il thread alla fine delle dichiarazioni: 
 threading.Thread(target=lcd_handler, daemon=True).start()
 
 # wrapper scrittura Pico
