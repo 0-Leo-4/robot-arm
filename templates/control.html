@@ -89,8 +89,25 @@
     <!-- Emergency -->
     <div class="mb-4">
       <button id="btnStop"  class="btn btn-danger me-2">STOP</button>
-      <button id="btnReset" class="btn btn-warning">RESET</button>
+      <button id="btnReset" class="btn btn-warning me-2">RESET</button>
+      <button id="btnEnableMotors" class="btn btn-info">Abilita Motori</button>
     </div>
+    <script>
+      // Pulsante Abilita Motori
+      const btnEnableMotors = document.getElementById('btnEnableMotors');
+      btnEnableMotors.onclick = () => {
+      axios.post('/api/enable_motors')
+        .then(r => {
+        log('Motori abilitati → ' + r.data.status);
+        btnEnableMotors.disabled = true;
+        })
+        .catch(e => log('Errore abilitazione motori: ' + e));
+      };
+      // Disabilita il pulsante dopo il primo click
+      window.addEventListener('DOMContentLoaded', () => {
+      btnEnableMotors.disabled = false;
+      });
+    </script>
 
     <!-- Log -->
     <div class="card bg-dark text-light">

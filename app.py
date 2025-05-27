@@ -266,6 +266,17 @@ def reset_alarm():
     relay.off()
     return jsonify(status='reset')
 
+@app.route('/api/enable_motors', methods=['POST'])
+def enable_motors():
+    """
+    Abilita i motori attivando il relè su GPIO 17.
+    """
+    try:
+        relay.on()
+        return jsonify(status='enabled')
+    except Exception as e:
+        return jsonify(status='error', error=str(e)), 500
+
 @app.route('/api/gpio', methods=['POST'])
 def set_gpio():
     """
@@ -372,4 +383,3 @@ if __name__ == '__main__':
     lcd_status("SERVER START")
     lcd_speed(current_speed)
     app.run(host='0.0.0.0', port=5000, threaded=True)
-    relay.on()
