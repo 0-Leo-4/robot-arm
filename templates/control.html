@@ -8,28 +8,22 @@
   <link rel="stylesheet" href="/static/styles.css">
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <style>
-    body, .bg-dark {
-      background-color: #181a1b !important;
-    }
+    body, .bg-dark { background-color: #181a1b !important; }
     .card, .form-range, .log-area, .btn, .form-control {
       background-color: #23272b !important;
       color: #f8f9fa !important;
       border-color: #343a40 !important;
     }
-    .btn-info, .btn-warning, .btn-secondary, .btn-outline-primary, .btn-outline-danger, .btn-danger {
-      color: #f8f9fa !important;
-    }
-    .btn-info { background-color:rgb(26, 104, 119) !important; border-color: #0dcaf0 !important; }
-    .btn-warning { background-color: #ffc107 !important; border-color: #ffc107 !important; color: #181a1b !important;}
+    /* Button styles */
+    .btn-info { background-color: rgb(26,104,119) !important; border-color: #0dcaf0 !important; }
+    .btn-warning { background-color: #ffc107 !important; border-color: #ffc107 !important; color: #181a1b !important; }
     .btn-secondary { background-color: #6c757d !important; border-color: #6c757d !important; }
     .btn-danger { background-color: #dc3545 !important; border-color: #dc3545 !important; }
     .btn-outline-primary { border-color: #0d6efd !important; color: #0d6efd !important; }
     .btn-outline-danger { border-color: #dc3545 !important; color: #dc3545 !important; }
     .btn-outline-primary:hover, .btn-outline-primary:active { background-color: #0d6efd !important; color: #fff !important; }
     .btn-outline-danger:hover, .btn-outline-danger:active { background-color: #dc3545 !important; color: #fff !important; }
-    .form-range::-webkit-slider-thumb { background: #0dcaf0; }
-    .form-range::-moz-range-thumb { background: #0dcaf0; }
-    .form-range::-ms-thumb { background: #0dcaf0; }
+    .form-range::-webkit-slider-thumb, .form-range::-moz-range-thumb, .form-range::-ms-thumb { background: #0dcaf0; }
     label, h1, h5, .card-header { color: #f8f9fa !important; }
     .card-header { background-color: #23272b !important; border-bottom: 1px solid #343a40 !important; }
     .log-area { border-radius: 4px; }
@@ -37,33 +31,27 @@
 </head>
 <body class="bg-dark">
   <div class="container py-4">
-    <h1 class="mb-2">Robot Control 
-    <span id="picoStatus" class="badge bg-success ms-2">Pico: Connesso</span>
-  </h1>
+    <h1 class="mb-2">
+      Robot Control <span id="picoStatus" class="badge bg-success ms-2">Pico: Connesso</span>
+    </h1>
 
     <!-- Settings -->
-    <div class="card mb-4 bg-dark text-light">
+    <div class="card mb-4">
       <div class="card-header">Settings</div>
       <div class="card-body">
-      <div class="mb-2">
-        <button id="btnRebootPi"   class="btn btn-info me-2 mb-2">Reboot Pi5</button>
+        <button id="btnRebootPi" class="btn btn-info me-2 mb-2">Reboot Pi5</button>
         <button id="btnRebootPico" class="btn btn-info mb-2">Reboot Pico</button>
-      </div>
-      <div class="mb-2">
-        <button id="btnDiscPico"   class="btn btn-secondary me-2 mb-2">Disconnect Pico</button>
-        <button id="btnConnPico"   class="btn btn-secondary mb-2">Reconnect Pico</button>
-      </div>
-      <div>
+        <button id="btnDiscPico" class="btn btn-secondary me-2 mb-2">Disconnect Pico</button>
+        <button id="btnConnPico" class="btn btn-secondary mb-2">Reconnect Pico</button>
         <button id="btnGitPull" class="btn btn-info">Pull Updates</button>
-      </div>
       </div>
     </div>
 
     <!-- Speed Slider & Video Button -->
     <div class="mb-3 d-flex align-items-center">
       <div class="flex-grow-1">
-      <label>Speed: <span id="speedVal">100%</span></label>
-      <input type="range" id="speedRange" min="5" max="100" step="5" value="100" class="form-range">
+        <label>Speed: <span id="speedVal">100%</span></label>
+        <input type="range" id="speedRange" min="5" max="100" step="5" value="100" class="form-range">
       </div>
       <a href="/video" target="_blank" class="btn btn-info ms-3">Video</a>
     </div>
@@ -71,180 +59,56 @@
     <!-- Homing & Grip -->
     <div class="mb-3">
       <button id="btnHoming" class="btn btn-warning me-2">Homing</button>
-      <button id="btnOpen"  class="btn btn-secondary me-1">Open Grip</button>
+      <button id="btnOpen" class="btn btn-secondary me-1">Open Grip</button>
       <button id="btnClose" class="btn btn-secondary">Close Grip</button>
     </div>
 
     <!-- Jog ±1mm with hold -->
     <div class="mb-3">
       <h5>Jog</h5>
-      <button class="btn btn-outline-primary me-1" id="jXpos" title="hold to repeat">X +1</button>
-      <button class="btn btn-outline-primary me-1" id="jYpos" title="hold to repeat">Y +1</button>
-      <button class="btn btn-outline-primary me-1" id="jZpos" title="hold to repeat">Z +1</button>
-      <button class="btn btn-outline-danger ms-3" id="jXneg" title="hold to repeat">X -1</button>
-      <button class="btn btn-outline-danger me-1" id="jYneg" title="hold to repeat">Y -1</button>
-      <button class="btn btn-outline-danger" id="jZneg" title="hold to repeat">Z -1</button>
+      <button id="jXpos" class="btn btn-outline-primary me-1" title="hold to repeat">X +1</button>
+      <button id="jYpos" class="btn btn-outline-primary me-1" title="hold to repeat">Y +1</button>
+      <button id="jZpos" class="btn btn-outline-primary me-1" title="hold to repeat">Z +1</button>
+      <button id="jXneg" class="btn btn-outline-danger ms-3" title="hold to repeat">X -1</button>
+      <button id="jYneg" class="btn btn-outline-danger me-1" title="hold to repeat">Y -1</button>
+      <button id="jZneg" class="btn btn-outline-danger" title="hold to repeat">Z -1</button>
     </div>
 
-    <!-- Emergency -->
+    <!-- Emergency & Enable Motors -->
     <div class="mb-4">
-      <button id="btnStop"  class="btn btn-danger me-2">STOP</button>
+      <button id="btnStop" class="btn btn-danger me-2">STOP</button>
       <button id="btnReset" class="btn btn-warning me-2">RESET</button>
       <button id="btnEnableMotors" class="btn btn-info">Abilita Motori</button>
     </div>
-    <script>
-      // Pulsante Abilita Motori
-      const btnEnableMotors = document.getElementById('btnEnableMotors');
-      btnEnableMotors.onclick = () => {
-      axios.post('/api/enable_motors')
-        .then(r => {
-        log('Motori abilitati → ' + r.data.status);
-        btnEnableMotors.disabled = true;
-        })
-        .catch(e => log('Errore abilitazione motori: ' + e));
-      };
-      // Disabilita il pulsante dopo il primo click
-      window.addEventListener('DOMContentLoaded', () => {
-      btnEnableMotors.disabled = false;
-      });
-    </script>
+
+    <!-- Manual G-code Entry -->
+    <div class="card mb-4">
+      <div class="card-header">Manual G-code</div>
+      <div class="card-body">
+        <textarea id="gcodeInput" rows="5" class="form-control mb-2" placeholder="E.g.\nG0 X10 Y0 Z0\nG1 X0 Y10 Z0"></textarea>
+        <button id="btnSendGcode" class="btn btn-outline-primary">Send G-code</button>
+      </div>
+    </div>
 
     <!-- Log -->
-    <div class="card bg-dark text-light">
+    <div class="card">
       <div class="card-body p-2">
         <pre id="log" class="bg-dark text-light p-2 log-area"></pre>
       </div>
     </div>
   </div>
 
+  <!-- Main Script -->
   <script>
-    const logEl  = document.getElementById('log');
-    let repeatId = null;
-    function log(msg){
+    const logEl = document.getElementById('log');
+    function log(msg) {
       logEl.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + logEl.textContent;
     }
-    function setUI(on){
-      document.querySelectorAll('button, input').forEach(el=>el.disabled=!on);
+    function setUI(on) {
+      document.querySelectorAll('button, input').forEach(el => el.disabled = !on);
     }
 
-    // Speed
-    const spR = document.getElementById('speedRange'),
-        spV = document.getElementById('speedVal');
-    spR.oninput = () => {
-      const v = +spR.value;
-      spV.textContent = v + '%';
-    };
-    spR.onchange = () => {
-      const v = +spR.value;
-      axios.post('/api/set_speed', {speed_pct: v});
-    };
-
-    // Reboot Pi5
-    document.getElementById('btnRebootPi').onclick = () => {
-      if (confirm("Reboot host (Pi5)?")) {
-        axios.post('/api/reboot_pi')
-             .then(r => log('Pi5 → ' + r.data.status))
-             .catch(err => log('Error reboot Pi5: ' + err));
-      }
-    };
-
-    // Reboot Pico
-    document.getElementById('btnRebootPico').onclick = () => {
-      if (confirm("Reboot Pico?")) {
-        axios.post('/api/reboot_pico')
-             .then(r => log('Pico → ' + r.data.status))
-             .catch(err => log('Error reboot Pico: ' + err));
-      }
-    };
-
-    // Homing
-    document.getElementById('btnHoming').onclick = () => {
-      axios.post('/api/homing')
-        .then(r => log('Homing → ' + r.data.status))
-        .catch(e => log('Error: ' + e));
-    };
-
-    // Gripper
-    document.getElementById('btnOpen').onclick = () => {
-      axios.post('/api/upload',{commands:[{cmd:'grip',angle:0}]})
-        .then(()=> axios.post('/api/run_queue'))
-        .then(r=>log('Grip open'))
-        .catch(e=>log('Error: '+e));
-    };
-    document.getElementById('btnClose').onclick = () => {
-      axios.post('/api/upload',{commands:[{cmd:'grip',angle:84}]})
-        .then(()=> axios.post('/api/run_queue'))
-        .then(r=>log('Grip close'))
-        .catch(e=>log('Error: '+e));
-    };
-
-    // Jog helper
-    function startJog(a,m){
-      axios.post('/api/jog',{axis:a,mm:m})
-        .then(r=>log(`Jog ${a} ${m>0?'+':'-'}1 → ${r.data.status}`))
-        .catch(e=>log('Error: '+e));
-      repeatId = setTimeout(()=> startJog(a,m), 200);
-    }
-    function stopJog(){ clearTimeout(repeatId); repeatId = null; }
-
-    // Attach hold listeners
-    [['jXpos','X',1],['jXneg','X',-1],
-     ['jYpos','Y',1],['jYneg','Y',-1],
-     ['jZpos','Z',1],['jZneg','Z',-1]
-    ].forEach(([id,ax,m]) => {
-      const btn = document.getElementById(id);
-      btn.onmousedown = () => startJog(ax,m);
-      btn.onmouseup   = () => stopJog();
-      btn.onmouseleave= () => stopJog();
-      btn.ontouchstart= () => startJog(ax,m);
-      btn.ontouchend  = () => stopJog();
-    });
-
-    // Emergency
-    document.getElementById('btnStop').onclick = () => {
-      axios.post('/api/stop')
-      .then(r => { 
-      log('STOP → ' + r.data.status); 
-      setUI(false); 
-      document.getElementById('btnReset').disabled = false;
-      // Cambia stato GPIO (usa gpiozero lato server)
-      axios.post('/api/gpiozero', { pin: 17, state: 1 })
-        .then(r => log('GPIOZero 17 → HIGH'))
-        .catch(e => log('Errore GPIOZero: ' + e));
-      })
-      .catch(e => log('Error: '+e));
-    };
-
-    // Reset
-    document.getElementById('btnReset').onclick = () => {
-      axios.post('/api/reset')
-      .then(r => { 
-      log('RESET → ' + r.data.status); 
-      setUI(true);
-      document.getElementById('btnEnableMotors').disabled = true;
-      // Cambia stato GPIO (usa gpiozero lato server)
-      axios.post('/api/gpiozero', { pin: 17, state: 0 })
-        .then(r => log('GPIOZero 17 → LOW'))
-        .catch(e => log('Errore GPIOZero: ' + e));
-      })
-      .catch(e => log('Error: '+e));
-    };
-
-    // Disconnect Pico
-    document.getElementById('btnDiscPico').onclick = () => {
-      axios.post('/api/disconnect_pico')
-        .then(r => log('Pico → ' + r.data.status))
-        .catch(e => log('Error: ' + e));
-    };
-
-    // Reconnect Pico
-    document.getElementById('btnConnPico').onclick = () => {
-      axios.post('/api/reconnect_pico')
-        .then(r => log('Pico → ' + r.data.status))
-        .catch(e => log('Error: ' + e));
-    };
-
-    // Aggiorna badge di stato Pico
+    // Pico status badge
     const statusEl = document.getElementById('picoStatus');
     function updatePicoStatus(){
       axios.get('/api/pico_status')
@@ -258,53 +122,64 @@
           statusEl.className = 'badge bg-warning ms-2';
         });
     }
-    // Richiama subito e poi ogni 5 secondi
     updatePicoStatus();
-    setInterval(updatePicoStatus, 1000);
+    setInterval(updatePicoStatus, 5000);
 
-    // Quando fai disconnect/reconnect aggiorna subito
-    document.getElementById('btnDiscPico').onclick = () => {
-      axios.post('/api/disconnect_pico')
-        .then(r => { log('Pico → '+r.data.status); updatePicoStatus(); })
-        .catch(e => log('Error: '+e));
-    };
-    document.getElementById('btnConnPico').onclick = () => {
-      axios.post('/api/reconnect_pico')
-        .then(r => { log('Pico → '+r.data.status); updatePicoStatus(); })
-        .catch(e => log('Error: '+e));
-    };
+    // Speed control
+    const spR = document.getElementById('speedRange'), spV = document.getElementById('speedVal');
+    spR.oninput = () => { spV.textContent = spR.value + '%'; };
+    spR.onchange = () => { axios.post('/api/set_speed', { speed_pct: +spR.value }); };
 
-    // Pull updates da Git
+    // Reboot/Connect buttons
+    document.getElementById('btnRebootPi').onclick = () => {
+      if(confirm('Reboot Pi5?')) axios.post('/api/reboot_pi').then(r=>log('Pi5 → '+r.data.status));
+    };
+    document.getElementById('btnRebootPico').onclick = () => {
+      if(confirm('Reboot Pico?')) axios.post('/api/reboot_pico').then(r=>log('Pico → '+r.data.status));
+    };
+    document.getElementById('btnDiscPico').onclick = () => { axios.post('/api/disconnect_pico').then(r=>{log('Pico → '+r.data.status); updatePicoStatus();}); };
+    document.getElementById('btnConnPico').onclick = () => { axios.post('/api/reconnect_pico').then(r=>{log('Pico → '+r.data.status); updatePicoStatus();}); };
     document.getElementById('btnGitPull').onclick = () => {
-      if (confirm("Eseguire git pull e riavviare l’app?")) {
-        axios.post('/api/git_pull')
-          .then(r => {
-            log('Git Pull → ' + r.data.status);
-            log(r.data.output);
-            // qui eventualmente riavvii il server o mostri istruzioni
-          })
-          .catch(e => log('Error git pull: ' + e));
-      }
+      if(confirm('Git pull & restart?')) axios.post('/api/git_pull').then(r=>{log('Git → '+r.data.status); log(r.data.output);});
     };
+
+    // Homing & Grip
+    document.getElementById('btnHoming').onclick = () => axios.post('/api/homing').then(r=>log('Homing → '+r.data.status));
+    document.getElementById('btnOpen').onclick   = () => axios.post('/api/upload',{commands:[{cmd:'grip',angle:0}]}).then(()=>axios.post('/api/run_queue')).then(()=>log('Grip open'));
+    document.getElementById('btnClose').onclick  = () => axios.post('/api/upload',{commands:[{cmd:'grip',angle:84}]}).then(()=>axios.post('/api/run_queue')).then(()=>log('Grip close'));
+
+    // Jog with hold
+    let jogTimer;
+    function startJog(ax, m){ axios.post('/api/jog',{axis:ax,mm:m}).then(r=>log(`Jog ${ax} ${m>0?'+':'-'}1 → ${r.data.status}`)); jogTimer = setTimeout(()=>startJog(ax,m), 200); }
+    function stopJog(){ clearTimeout(jogTimer); }
+    [['jXpos','X',1],['jYpos','Y',1],['jZpos','Z',1],
+     ['jXneg','X',-1],['jYneg','Y',-1],['jZneg','Z',-1]
+    ].forEach(([id,ax,m]) => {
+      const btn= document.getElementById(id);
+      ['mousedown','touchstart'].forEach(ev=>btn.addEventListener(ev, ()=>startJog(ax,m)));
+      ['mouseup','mouseleave','touchend'].forEach(ev=>btn.addEventListener(ev, stopJog));
+    });
+
+    // Emergency & Reset & Enable Motors
+    document.getElementById('btnStop').onclick = () => {
+      axios.post('/api/stop').then(r=>{ log('STOP → '+r.data.status); setUI(false); document.getElementById('btnReset').disabled=false; });
+    };
+    document.getElementById('btnReset').onclick = () => {
+      axios.post('/api/reset').then(r=>{ log('RESET → '+r.data.status); setUI(true); document.getElementById('btnEnableMotors').disabled=true; });
+    };
+    document.getElementById('btnEnableMotors').onclick = () => {
+      axios.post('/api/enable_motors').then(r=>{ log('Motori abilitati → '+r.data.status); document.getElementById('btnEnableMotors').disabled=true; });
+    };
+
+    // Send G-code
+    document.getElementById('btnSendGcode').onclick = () => {
+      const code = document.getElementById('gcodeInput').value.trim();
+      if(!code) return log('Nessun G-code da inviare');
+      axios.post('/api/gcode',{ code }).then(r=>log(`Movimenti inviati: ${r.data.sent}`));
+    };
+
+    // initialize UI
     setUI(true);
-
-    <!-- G-CODE MANUAL ENTRY -->
-    <div class="card mb-4 bg-dark text-light">
-      <div class="card-header">Manual G-code</div>
-      <div class="card-body">
-        <textarea id="gcodeInput" rows="5" class="form-control mb-2"
-          placeholder="Es.&#10;G0 X10 Y0 Z0&#10;G0 X0 Y10 Z0"></textarea>
-        <button id="btnSendGcode" class="btn btn-outline-primary">Send G-code</button>
-      </div>
-    </div>
-
-    <script>
-      document.getElementById('btnSendGcode').onclick = () => {
-        const code = document.getElementById('gcodeInput').value.trim();
-        axios.post('/api/gcode', { code })
-          .then(r => log(`Movimenti inviati: ${r.data.sent}`))
-          .catch(e => log('Errore G-code: '+e));
-      };
-    </script>
+  </script>
 </body>
 </html>
