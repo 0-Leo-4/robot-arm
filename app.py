@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import subprocess
 import threading
 import serial
 import time
@@ -270,6 +271,28 @@ def reboot_pico():
     except Exception as e:
         return jsonify(status='error', error=str(e)), 500
 
+@app.route('/api/git_pull', methods=['POST'])
+def git_pull():
+    """
+    Esegue `git pull` nella cartella corrente e restituisce
+    stdout/stderr.
+    """
+    try:
+        # Esegui git pull
+        result = subprocess.run(
+            ['git', 'pull'],
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=30
+        )
+        output = result.stdout + result.stderr
+        status = 'ok' if result.returncode == 0 else 'error'
+        return jsonify(status=status, output=output)
+    except Exception as e:
+        return jsonify(status='error', output=str(e)), 500
+    
 if __name__ == '__main__':
     lcd_status("SERVER START")
     lcd_speed(current_speed)
