@@ -192,44 +192,41 @@
 
         // Update detections and overlay
         async function updateDetections() {
-            try {
-                const res = await fetch('/api/detections');
-                const data = await res.json();
-                const { detections, fps } = data;
+            const res = await fetch('/api/detections');
+            const data = await res.json();
+            const { detections, fps } = data;
 
-                // Update FPS display
-                document.getElementById("fps-label").textContent = `FPS: ${fps}`;
-                document.getElementById("fps-value").textContent = fps;
+            // aggiorna FPS
+            document.getElementById("fps-label").textContent = `FPS: ${fps}`;
+            document.getElementById("fps-value").textContent = fps;
 
-                // Clear previous drawings
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                // Draw new detections
-                const videoResolution = { width: 640, height: 480 };
+            // calcola scale X/Y indipendenti
+            const scaleX = canvas.width / videoImage.naturalWidth;
+            const scaleY = canvas.height / videoImage.naturalHeight;
+            const rScale = (scaleX + scaleY) / 2;
 
-                ctx.strokeStyle = '#00ffff';
-                ctx.lineWidth = 2;
-                ctx.font = '14px Arial';
-                ctx.fillStyle = '#ffffff';
+            ctx.strokeStyle = '#00ffff';
+            ctx.lineWidth = 2;
+            ctx.font = '14px Arial';
+            ctx.fillStyle = '#ffffff';
 
-                detections.forEach((det) => {
-                    const id = det.id;
-                    const x = (det.x / videoResolution.width)  * canvas.width;
-                    const y = (det.y / videoResolution.height) * canvas.height;
-                    const r = (det.r / videoResolution.width)  * canvas.width;
+            detections.forEach(det => {
+                const id = det.id;
+                const x = det.x * scaleX;
+                const y = det.y * scaleY;
+                const r = det.r * rScale;
 
-                    ctx.beginPath();
-                    ctx.arc(x, y, r, 0, 2 * Math.PI);
-                    ctx.stroke();
-                    ctx.fillText(`ID:${id}`, x + 5, y - 5);
-                });
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, 2 * Math.PI);
+                ctx.stroke();
+                ctx.fillText(`ID:${id}`, x + 5, y - 5);
+            });
 
-                // Update table and chart
-                updateTableAndChart(detections);
-            } catch (error) {
-                console.error("Error fetching detections:", error);
-            }
+            updateTableAndChart(detections);
         }
+
 
         // Update table and chart data
         function updateTableAndChart(detections) {

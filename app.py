@@ -130,34 +130,34 @@ def try_write(cmd: dict):
 
 next_circle_id = 1
 tracked_circles = {}
-def assign_ids_to_circles(new_circles, threshold=30):
+def assign_ids_to_circles(new_circles, threshold=50):
     global tracked_circles, next_circle_id
 
-    updated_circles = []
-    used_ids = set()
+    updated = []
+    used = set()
 
     for nc in new_circles:
         x, y, r = nc["x"], nc["y"], nc["r"]
-        assigned_id = None
+        assigned = None
 
+        # matching sul float, con soglia più ampia
         for cid, old in tracked_circles.items():
-            dist = math.hypot(x - old["x"], y - old["y"])
-            if dist < threshold and cid not in used_ids:
-                assigned_id = cid
-                used_ids.add(cid)
+            d = math.hypot(x - old["x"], y - old["y"])
+            if d < threshold and cid not in used:
+                assigned = cid
+                used.add(cid)
                 break
 
-        if assigned_id is None:
-            assigned_id = next_circle_id
+        if assigned is None:
+            assigned = next_circle_id
             next_circle_id += 1
 
-        tracked_circles[assigned_id] = {"x": x, "y": y, "r": r}
-        updated_circles.append({"id": assigned_id, "x": x, "y": y, "r": r})
+        tracked_circles[assigned] = {"x": x, "y": y, "r": r}
+        updated.append({"id": assigned, "x": x, "y": y, "r": r})
 
-    # Pulisce quelli scomparsi (opzionale)
-    tracked_circles = {c["id"]: {"x": c["x"], "y": c["y"], "r": c["r"]} for c in updated_circles}
-    return updated_circles
-
+    # elimina quelli non visti
+    tracked_circles = {c["id"]: {"x":c["x"], "y":c["y"], "r":c["r"]} for c in updated}
+    return updated
 
 def capture_and_detect():
     global detections, fps, latest_frame
@@ -181,10 +181,10 @@ def capture_and_detect():
         # Update detections
         curr = []
         if circles is not None:
-            for x, y, r in np.round(circles[0]).astype(int):
-                curr.append({"x": int(x), "y": int(y), "r": int(r)})
+            for x, y, r in circles[0]:   # qui x,y,r sono float
+                curr.append({"x": float(x), "y": float(y), "r": float(r)})
 
-        tracked = assign_ids_to_circles(curr)
+        tracked = assign_ids_to_circles(curr)  
 
         with lock:
             detections = tracked
