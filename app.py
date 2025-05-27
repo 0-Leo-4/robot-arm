@@ -176,7 +176,7 @@ def reconnect_pico():
     open_pico()
     return jsonify(status='reconnected' if pico else 'error')
 
-@app.route('/api/set_speed', methods=['POST'])
+@app.route('/api/set_speed', methods=['GET', 'POST'])
 def set_speed():
     global current_speed
     if emergency_active:
