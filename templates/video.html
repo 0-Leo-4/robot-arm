@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Camera Video and Statistics</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
             margin: 0;
@@ -35,6 +36,12 @@
             justify-content: center;
             position: relative;
         }
+        canvas#video-canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 10px;
+        }
         .fps-label-outside {
             margin-top: 10px;
             align-self: flex-end;
@@ -55,13 +62,7 @@
             padding: 30px 20px;
             background: #23272a;
             box-shadow: -2px 0 8px #0002;
-        }
-        .stats-top {
-            flex: 1;
-            margin-bottom: 20px;
-        }
-        .stats-bottom {
-            flex: 1;
+            overflow-y: auto;
         }
         .stat-box {
             background: #23272a;
@@ -78,42 +79,133 @@
             margin: 8px 0;
             color: #b0b0b0;
         }
+        table {
+            width: 100%;
+            background: #2c2f33;
+            color: #e0e0e0;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        table th, table td {
+            padding: 6px;
+            border-bottom: 1px solid #444;
+            text-align: left;
+        }
+        canvas#chart {
+            background: #1e1e1e;
+            border-radius: 8px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="video-section">
             <div class="video-window">
-                <!-- Insert camera feed here, for example: -->
-                <!-- <img src="{{ camera_feed_url }}" alt="Camera" style="width:100%; height:100%; object-fit:cover;"> -->
-                <span style="color:#fff;">Camera Window</span>
+                <canvas id="video-canvas"></canvas>
             </div>
+            <div class="fps-label-outside" id="fps-label">FPS: --</div>
         </div>
         <div class="stats-section">
-            <div class="stats-top">
-                <div class="stat-box">
-                    <h3>Statistics</h3>
-                    <p><strong>Conveyor Speed:</strong> {{ conveyor_speed }} mm/s</p>
-                    <p><strong>Resolution:</strong> {{ resolution }}</p>
-                    <p><strong>Fps:</strong> {{ fps }}</p>
-                    <p><strong>Detection interval:</strong> {{ detection_interval }}</p>
-                    <p><strong>Model:</strong> Model</p>
-                    <h3 style="margin-top:24px;">Detected Pieces - Coordinates</h3>
-                    <table id="pieces-table" style="width:100%; background:#23272a; color:#e0e0e0; border-collapse:collapse;">
-                        <thead>
-                            <tr style="border-bottom: 2px solid #444;">
-                                <th style="text-align:left; padding:6px;">Piece</th>
-                                <th style="text-align:left; padding:6px;">X</th>
-                                <th style="text-align:left; padding:6px;">Y</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- Example row, replace or loop in Django template -->
-                            <tr style="border-bottom: 1px solid #444;">
-                                <td style="padding:6px;">P1</td>
-                                <td style="padding:6px;">//</td>
-                                <td style="padding:6px;">//</td>
-                            </tr>
-                            <!-- Add more rows as needed -->
-                        </tbody>
-                    </table>
+            <div class="stat-box">
+                <h3>Statistics</h3>
+                <p><strong>Conveyor Speed:</strong> {{ conveyor_speed }} mm/s</p>
+                <p><strong>Resolution:</strong> {{ resolution }}</p>
+                <p><strong>FPS:</strong> <span id="fps-value">{{ fps }}</span></p>
+                <p><strong>Detection interval:</strong> {{ detection_interval }}</p>
+                <p><strong>Model:</strong> Model</p>
+                <h3 style="margin-top:24px;">Detected Pieces - Coordinates</h3>
+                <table id="pieces-table">
+                    <thead>
+                        <tr>
+                            <th>Piece</th>
+                            <th>X</th>
+                            <th>Y</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body">
+                        <!-- Data inserted via JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="stat-box">
+                <h3>Live Chart</h3>
+                <canvas id="chart" width="300" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('video-canvas');
+        const ctx = canvas.getContext('2d');
+        const tableBody = document.getElementById('table-body');
+
+        const chartCtx = document.getElementById('chart').getContext('2d');
+        const scatterChart = new Chart(chartCtx, {
+            type: 'scatter',
+            data: {
+                datasets: [{
+                    label: 'Detected Pieces',
+                    backgroundColor: '#4bc0c0',
+                    data: []
+                }]
+            },
+            options: {
+                scales: {
+                    x: { title: { display: true, text: 'X (px)' }, beginAtZero: true },
+                    y: { title: { display: true, text: 'Y (px)' }, beginAtZero: true }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+
+        function drawDetections(frameUrl, detections) {
+            const image = new Image();
+            image.onload = function () {
+                canvas.width = image.width;
+                canvas.height = image.height;
+                ctx.drawImage(image, 0, 0);
+                ctx.strokeStyle = '#00ffff';
+                ctx.lineWidth = 2;
+                detections.forEach((det, index) => {
+                    ctx.beginPath();
+                    ctx.arc(det.x, det.y, det.r || 10, 0, 2 * Math.PI);
+                    ctx.stroke();
+                    ctx.fillStyle = "#ffffff";
+                    ctx.fillText(`P${index + 1}`, det.x + 5, det.y - 5);
+                });
+            };
+            image.src = frameUrl;
+        }
+
+        async function updateDetections() {
+            try {
+                const res = await fetch('/api/detections');
+                const data = await res.json();
+                const { frame_url, detections, fps } = data;
+
+                drawDetections(frame_url, detections);
+                document.getElementById("fps-label").textContent = `FPS: ${fps}`;
+                document.getElementById("fps-value").textContent = fps;
+
+                tableBody.innerHTML = '';
+                scatterChart.data.datasets[0].data = [];
+
+                detections.forEach((det, i) => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `<td>P${i + 1}</td><td>${det.x}</td><td>${det.y}</td>`;
+                    tableBody.appendChild(row);
+                    scatterChart.data.datasets[0].data.push({ x: det.x, y: det.y });
+                });
+
+                scatterChart.update();
+            } catch (error) {
+                console.error("Error fetching detections:", error);
+            }
+        }
+
+        setInterval(updateDetections, 500); // Update every 0.5s
+    </script>
+</body>
+</html>

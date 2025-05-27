@@ -6,9 +6,11 @@ import time
 import json
 import sys
 import os
+import base64
 import math
-
-from flask import Flask, request, jsonify, render_template
+import cv2
+import numpy as np
+from flask import Flask, request, jsonify, render_template, Response
 import smbus2
 from RPLCD.i2c import CharLCD
 
@@ -20,6 +22,9 @@ app = Flask(__name__, template_folder='templates', static_folder='static')
 SERIAL_PORT    = '/dev/ttyACM0'
 BAUDRATE       = 115200
 
+
+detections = []
+
 # LCD HD44780 via PCF8574 su I²C bus 1
 LCD_I2C_ADDR   = 0x27   # modifica se diverso
 LCD_COLUMNS    = 16
@@ -27,10 +32,13 @@ LCD_ROWS       = 2
 I2C_PORT       = 1
 
 # stato globale
+detections = []
+fps = 0.0
+current_speed = 100
 emergency_active = False
-current_speed    = 100
-lock             = threading.Lock()
-lcd_lock         = threading.Lock()
+lock = threading.Lock()
+lcd_lock = threading.Lock()
+latest_frame = None
 
 # —————————————————————
 #  INIZIALIZZA LCD via RPLCD
@@ -58,15 +66,16 @@ def lcd_speed(sp: int):
 # —————————————————————
 #  APRE/RICOLLEGA LA SERIAL AL PICO
 # —————————————————————
+# apertura seriale Pico
 pico = None
+
 def open_pico():
     global pico
     try:
         port = SERIAL_PORT if not sys.platform.startswith('win') else 'COM6'
         p = serial.Serial(port, BAUDRATE, timeout=0.1, write_timeout=0.1)
         time.sleep(2)
-        p.reset_input_buffer()
-        p.reset_output_buffer()
+        p.reset_input_buffer(); p.reset_output_buffer()
         pico = p
         app.logger.info("Pico connesso su %s", port)
     except Exception as e:
@@ -75,49 +84,34 @@ def open_pico():
 
 open_pico()
 
-# thread che monitora la disconnessione fisica del Pico
+# monitor disconnessione Pico
 def monitor_pico():
     global pico
     while True:
         if pico:
-            try:
-                _ = pico.in_waiting
+            try: _ = pico.in_waiting
             except Exception:
-                app.logger.warning("Pico disconnesso fisicamente")
-                try:
-                    pico.close()
-                except:
-                    pass
-                pico = None
+                pico.close(); pico = None
         time.sleep(1)
-
 threading.Thread(target=monitor_pico, daemon=True).start()
 
 # —————————————————————
 #  THREAD DI FEEDBACK DAL PICO → LCD
 # —————————————————————
 def lcd_handler():
-    """Legge la seriale del Pico per STATUS|… e SPEED|… e aggiorna l’LCD."""
     while True:
+        line = ''
         if pico and pico.is_open:
-            try:
-                line = pico.readline().decode().strip()
-            except:
-                line = ''
-        else:
-            line = ''
+            try: line = pico.readline().decode().strip()
+            except: pass
         if line.startswith("STATUS|"):
-            msg = line.split("|",1)[1]
-            lcd_status(msg)
+            lcd_status(line.split("|",1)[1])
         elif line.startswith("SPEED|"):
-            sp = line.split("|",1)[1]
             try:
-                with lcd_lock:  # <-- Aggiungi qui
-                    lcd_speed(int(sp))
-            except:
-                pass
+                sp = int(line.split("|",1)[1])
+                lcd_speed(sp)
+            except: pass
         time.sleep(0.01)
-
 threading.Thread(target=lcd_handler, daemon=True).start()
 
 # —————————————————————
@@ -126,20 +120,40 @@ threading.Thread(target=lcd_handler, daemon=True).start()
 def try_write(cmd: dict):
     global pico
     with lock:
-        if not pico or not getattr(pico, 'is_open', False):
-            return
+        if not pico or not getattr(pico, 'is_open', False): return
         try:
-            line = json.dumps(cmd) + "\n"
             pico.reset_output_buffer()
-            pico.write(line.encode())
-            pico.flush()
-        except Exception as e:
-            app.logger.warning("Write skipped, Pico disconnesso: %s", e)
-            try:
-                pico.close()
-            except:
-                pass
-            pico = None
+            pico.write((json.dumps(cmd)+"\n").encode()); pico.flush()
+        except Exception:
+            pico.close(); pico = None
+
+def capture_and_detect():
+    global detections, fps, latest_frame
+    cap = cv2.VideoCapture(0)
+    while True:
+        t0 = time.time()
+        ret, frame = cap.read()
+        if not ret: continue
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        blurred = cv2.GaussianBlur(gray, (9,9), 2)
+        circles = cv2.HoughCircles(blurred, cv2.HOUGH_GRADIENT, dp=1.2, minDist=50,
+                                   param1=50, param2=30, minRadius=10, maxRadius=100)
+        curr = []
+        if circles is not None:
+            for x,y,r in np.round(circles[0]).astype(int):
+                curr.append({"x":int(x),"y":int(y),"r":int(r)})
+                cv2.circle(frame, (x,y), r, (0,255,0), 2)
+        with lock:
+            detections = curr
+        # encode in-memory
+        ret2, jpeg = cv2.imencode('.jpg', frame)
+        if ret2:
+            latest_frame = jpeg.tobytes()
+        # compute fps
+        fps = round(1.0/(time.time()-t0),1)
+        time.sleep(max(0, 0.1 - (time.time()-t0)))
+
+threading.Thread(target=capture_and_detect, daemon=True).start()
 
 # —————————————————————
 #  FLASK ROUTES
@@ -153,8 +167,20 @@ def index():
 def video_page():
     return render_template('video.html',
         conveyor_speed='120', resolution='1280x720',
-        fps='30', detection_interval='500 ms'
+        fps=f"{fps}", detection_interval='100 ms'
     )
+
+@app.route('/api/detections')
+def api_detections():
+    with lock:
+        return jsonify({'frame_url':'/api/frame', 'fps':fps, 'detections':detections})
+
+@app.route('/api/frame')
+def frame():
+    global latest_frame
+    if not latest_frame:
+        return Response(status=204)
+    return Response(latest_frame, mimetype='image/jpeg')
 
 @app.route('/api/pico_status', methods=['GET'])
 def pico_status():
