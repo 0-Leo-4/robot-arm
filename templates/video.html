@@ -145,9 +145,9 @@
 
     <script>
         const videoImage = document.getElementById('video-image');
-        const canvas = document.getElementById('video-canvas');
-        const ctx = canvas.getContext('2d');
-        const tableBody = document.getElementById('table-body');
+        const canvas     = document.getElementById('video-canvas');
+        const ctx        = canvas.getContext('2d');
+        const tableBody  = document.getElementById('table-body');
 
         // Initialize chart
         const chartCtx = document.getElementById('chart').getContext('2d');
@@ -177,73 +177,69 @@
             }
         });
 
-        // Handle canvas resizing
+        // Handle canvas resizing: mettiamo il canvas alle dimensioni visualizzate
         function updateCanvasSize() {
-            // Imposta il canvas alle dimensioni originali del video
-            canvas.width  = videoImage.naturalWidth;
-            canvas.height = videoImage.naturalHeight;
-            // Fai scalare il canvas via CSS in sincronia con <img>
-            canvas.style.width  = videoImage.clientWidth + 'px';
-            canvas.style.height = videoImage.clientHeight + 'px';
+            const displayW = videoImage.clientWidth;
+            const displayH = videoImage.clientHeight;
+
+            canvas.width  = displayW;
+            canvas.height = displayH;
+            canvas.style.width  = displayW + 'px';
+            canvas.style.height = displayH + 'px';
         }
 
         videoImage.onload = () => {
             updateCanvasSize();
             videoImage.style.display = 'block';
         };
-
         window.addEventListener('resize', updateCanvasSize);
 
-        // Update detections and overlay
         async function updateDetections() {
-            const res = await fetch('/api/detections');
-            const data = await res.json();
-            const { detections, fps } = data;
-
-            // aggiorna FPS
+            const res  = await fetch('/api/detections');
+            const { detections, fps } = await res.json();
             document.getElementById("fps-label").textContent = `FPS: ${fps}`;
             document.getElementById("fps-value").textContent = fps;
 
+            // Calcolo fattori di scala da "naturale" a "display"
+            const scaleX = videoImage.clientWidth  / videoImage.naturalWidth;
+            const scaleY = videoImage.clientHeight / videoImage.naturalHeight;
+            // (usiamo media per il raggio)
+            const scaleR = (scaleX + scaleY) / 2;
+
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // 1) ordina orizzontalmente
-            const sorted = detections.slice().sort((a, b) => a.x - b.x);
-
-            // 2) disegna cerchi e numeri
             ctx.strokeStyle = '#00ffff';
             ctx.lineWidth   = 2;
             ctx.font        = '16px Arial';
             ctx.fillStyle   = '#ffffff';
 
+            // ordina per X naturale, ma disegna usando le coords scalate
+            const sorted = detections.slice().sort((a,b) => a.x - b.x);
             sorted.forEach((det, idx) => {
-                const label = idx + 1;           // etichetta 1…N
-                const x     = det.x;             // ora canvas è in natural coords
-                const y     = det.y;
-                const r     = det.r;
+                const label   = idx + 1;
+                const xDisp   = det.x * scaleX;
+                const yDisp   = det.y * scaleY;
+                const rDisp   = det.r * scaleR;
 
                 ctx.beginPath();
-                ctx.arc(x, y, r, 0, 2 * Math.PI);
+                ctx.arc(xDisp, yDisp, rDisp, 0, 2*Math.PI);
                 ctx.stroke();
 
-                ctx.fillText(label.toString(), x + 5, y - 5);
+                ctx.fillText(label.toString(), xDisp + 5, yDisp - 5);
             });
 
             updateTableAndChart(detections);
         }
 
-        // Update table and chart data
         function updateTableAndChart(detections) {
             tableBody.innerHTML = '';
             scatterChart.data.datasets[0].data = [];
 
-            // stesso ordinamento sinistra→destra
-            const sorted = detections.slice().sort((a, b) => a.x - b.x);
-
+            // La tabella e il grafico lavorano sulle coords naturali
+            const sorted = detections.slice().sort((a,b) => a.x - b.x);
             sorted.forEach((det, idx) => {
                 const label = idx + 1;
-                // arrotonda le coordinate a interi
-                const xi = Math.round(det.x);
-                const yi = Math.round(det.y);
+                const xi    = Math.round(det.x);
+                const yi    = Math.round(det.y);
 
                 const row = document.createElement('tr');
                 row.innerHTML = `<td>${label}</td><td>${xi}</td><td>${yi}</td>`;
@@ -254,7 +250,8 @@
 
             scatterChart.update();
         }
-        // Start periodic updates
+
+        // Avvia aggiornamenti ogni 100 ms
         setInterval(updateDetections, 100);
     </script>
 </body>
