@@ -155,32 +155,6 @@ def capture_and_detect():
 
 threading.Thread(target=capture_and_detect, daemon=True).start()
 
-from flask import Response
-
-# -- dopo capture_and_detect(), non serve più latest_frame.file --
-# Aggiungi un generatore che emette continuamente l’ultimo frame codificato
-def mjpeg_generator():
-    global latest_frame
-    while True:
-        with lock:
-            frame = latest_frame
-        if frame is None:
-            time.sleep(0.01)
-            continue
-        yield (b"--frame\r\n"
-               b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n")
-        # piccolo sleep per dare respiro alla CPU
-        time.sleep(0.02)
-
-# Dentro le route Flask, aggiungi:
-@app.route('/video_feed')
-def video_feed():
-    return Response(
-        mjpeg_generator(),
-        mimetype='multipart/x-mixed-replace; boundary=frame'
-    )
-
-
 # —————————————————————
 #  FLASK ROUTES
 # —————————————————————
@@ -195,14 +169,7 @@ def video_page():
         conveyor_speed='120', resolution='1280x720',
         fps=f"{fps}", detection_interval='100 ms'
     )
-    
-@app.route('/video_feed')
-def video_feed():
-    return Response(
-        mjpeg_generator(),
-        mimetype='multipart/x-mixed-replace; boundary=frame'
-    )
-    
+
 @app.route('/api/detections')
 def api_detections():
     with lock:

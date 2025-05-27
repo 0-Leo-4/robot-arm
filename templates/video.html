@@ -36,7 +36,7 @@
             justify-content: center;
             position: relative;
         }
-        img#video-stream {
+        canvas#video-canvas {
             width: 100%;
             height: 100%;
             object-fit: cover;
@@ -101,7 +101,7 @@
     <div class="container">
         <div class="video-section">
             <div class="video-window">
-                <img id="video-stream" src="/video_feed" alt="Video stream">
+                <canvas id="video-canvas"></canvas>
             </div>
             <div class="fps-label-outside" id="fps-label">FPS: --</div>
         </div>
@@ -135,49 +135,77 @@
     </div>
 
     <script>
+        const canvas = document.getElementById('video-canvas');
+        const ctx = canvas.getContext('2d');
         const tableBody = document.getElementById('table-body');
-        const fpsLabel = document.getElementById('fps-label');
-        const fpsValue = document.getElementById('fps-value');
 
         const chartCtx = document.getElementById('chart').getContext('2d');
         const scatterChart = new Chart(chartCtx, {
             type: 'scatter',
-            data: { datasets: [{ label: 'Detected Pieces', data: [] }] },
+            data: {
+                datasets: [{
+                    label: 'Detected Pieces',
+                    backgroundColor: '#4bc0c0',
+                    data: []
+                }]
+            },
             options: {
                 scales: {
-                    x: { title: { display: true, text: 'X (px)' } },
-                    y: { title: { display: true, text: 'Y (px)' } }
+                    x: { title: { display: true, text: 'X (px)' }, beginAtZero: true },
+                    y: { title: { display: true, text: 'Y (px)' }, beginAtZero: true }
                 },
-                plugins: { legend: { display: false } }
+                plugins: {
+                    legend: { display: false }
+                }
             }
         });
+
+        function drawDetections(frameUrl, detections) {
+            const image = new Image();
+            image.onload = function () {
+                canvas.width = image.width;
+                canvas.height = image.height;
+                ctx.drawImage(image, 0, 0);
+                ctx.strokeStyle = '#00ffff';
+                ctx.lineWidth = 2;
+                detections.forEach((det, index) => {
+                    ctx.beginPath();
+                    ctx.arc(det.x, det.y, det.r || 10, 0, 2 * Math.PI);
+                    ctx.stroke();
+                    ctx.fillStyle = "#ffffff";
+                    ctx.fillText(`P${index + 1}`, det.x + 5, det.y - 5);
+                });
+            };
+            image.src = frameUrl;
+        }
 
         async function updateDetections() {
             try {
                 const res = await fetch('/api/detections');
-                const { frame_url, detections, fps } = await res.json();
+                const data = await res.json();
+                const { frame_url, detections, fps } = data;
 
-                fpsLabel.textContent = `FPS: ${fps}`;
-                fpsValue.textContent = fps;
+                drawDetections(frame_url, detections);
+                document.getElementById("fps-label").textContent = `FPS: ${fps}`;
+                document.getElementById("fps-value").textContent = fps;
 
-                // Aggiorna tabella
                 tableBody.innerHTML = '';
+                scatterChart.data.datasets[0].data = [];
+
                 detections.forEach((det, i) => {
                     const row = document.createElement('tr');
-                    row.innerHTML = `<td>P${i+1}</td><td>${det.x}</td><td>${det.y}</td>`;
+                    row.innerHTML = `<td>P${i + 1}</td><td>${det.x}</td><td>${det.y}</td>`;
                     tableBody.appendChild(row);
+                    scatterChart.data.datasets[0].data.push({ x: det.x, y: det.y });
                 });
 
-                // Aggiorna grafico
-                scatterChart.data.datasets[0].data = detections.map(d => ({ x: d.x, y: d.y }));
                 scatterChart.update();
-            } catch (err) {
-                console.error('Error fetching detections:', err);
+            } catch (error) {
+                console.error("Error fetching detections:", error);
             }
         }
 
-        // Polling per dati (tabella + chart)
-        setInterval(updateDetections, 500);
+        setInterval(updateDetections, 500); // Update every 0.5s
     </script>
 </body>
 </html>
