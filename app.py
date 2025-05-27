@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, render_template
 import threading, serial, time, json, sys, os, math
 import smbus2
-from i2c_lcd import I2cLcd
+from i2c_lcd.i2c_lcd import I2cLcd
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
