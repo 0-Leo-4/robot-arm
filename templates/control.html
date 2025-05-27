@@ -287,6 +287,24 @@
       }
     };
     setUI(true);
-  </script>
+
+    <!-- G-CODE MANUAL ENTRY -->
+    <div class="card mb-4 bg-dark text-light">
+      <div class="card-header">Manual G-code</div>
+      <div class="card-body">
+        <textarea id="gcodeInput" rows="5" class="form-control mb-2"
+          placeholder="Es.&#10;G0 X10 Y0 Z0&#10;G0 X0 Y10 Z0"></textarea>
+        <button id="btnSendGcode" class="btn btn-outline-primary">Send G-code</button>
+      </div>
+    </div>
+
+    <script>
+      document.getElementById('btnSendGcode').onclick = () => {
+        const code = document.getElementById('gcodeInput').value.trim();
+        axios.post('/api/gcode', { code })
+          .then(r => log(`Movimenti inviati: ${r.data.sent}`))
+          .catch(e => log('Errore G-code: '+e));
+      };
+    </script>
 </body>
 </html>

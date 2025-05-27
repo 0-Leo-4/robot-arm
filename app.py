@@ -6,6 +6,7 @@ import time
 import json
 import sys
 import os
+import re
 import base64
 import math
 import cv2
@@ -131,6 +132,47 @@ def try_write(cmd: dict):
             pico.write((json.dumps(cmd)+"\n").encode()); pico.flush()
         except Exception:
             pico.close(); pico = None
+
+def parse_gcode_to_moves(code_block, mode='absolute'):
+    """
+    Prende un blocco di G-code (solo G0/G1), restituisce lista di comandi 
+    {"axis": "X"/"Y"/"Z", "mm": valore, "speed_pct": current_speed}.
+    mode: 'absolute' o 'relative'
+    """
+    moves = []
+    # manteniamo la posizione corrente
+    pos = {'X': 0.0, 'Y': 0.0, 'Z': 0.0}
+    for line in code_block.splitlines():
+        line = line.split(';',1)[0].strip()  # rimuove commenti
+        if not line: 
+            continue
+        m = re.match(r'^(G0|G1)\s*(.*)', line, re.IGNORECASE)
+        if not m:
+            continue
+        params = m.group(2)
+        # estrai parametri
+        coords = {}
+        for token in re.findall(r'([XYZF])([-+]?[0-9]*\.?[0-9]+)', params, re.IGNORECASE):
+            letter, num = token
+            coords[letter.upper()] = float(num)
+        # aggiorna modalità -- opzionale, qui forziamo solo absolute
+        # if 'F' in coords: ... puoi gestire feedrate
+        for axis in ('X', 'Y', 'Z'):
+            if axis in coords:
+                target = coords[axis]
+                if mode.lower() == 'relative':
+                    delta = target
+                else:
+                    delta = target - pos[axis]
+                pos[axis] += delta
+                # solo se c’è spostamento
+                if abs(delta) > 1e-6:
+                    moves.append({
+                        "axis": axis,
+                        "mm": delta,
+                        "speed_pct": current_speed
+                    })
+    return moves
 
 def assign_ids_to_circles(new_circles):
     """
@@ -442,6 +484,22 @@ def git_pull():
     except Exception as e:
         return jsonify(status='error', output=str(e)), 500
     
+@app.route('/api/gcode', methods=['POST'])
+def send_gcode():
+    """
+    Riceve un blocco di testo G-code, lo parsifica in movimenti 
+    e li manda uno a uno al Pico.
+    """
+    payload = request.json or {}
+    code = payload.get('code', '')
+    # Parse dei movimenti (absolute mode)
+    moves = parse_gcode_to_moves(code, mode='absolute')
+    # Invia al Pico
+    for mv in moves:
+        try_write(mv)
+        time.sleep(0.02)  # piccola pausa
+    return jsonify(status='ok', sent=len(moves))
+
 if __name__ == '__main__':
     lcd_status("SERVER START")
     lcd_speed(current_speed)
