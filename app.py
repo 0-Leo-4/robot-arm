@@ -184,7 +184,7 @@ def set_speed():
     v = int(request.json.get('speed_pct', 100))
     current_speed = v
     lcd_speed(v)
-    try_write({"cmd":"set_speed", "value": v})
+    try_write({"cmd":"speed", "speed_pct": v})
     return jsonify(status='ok')
 
 @app.route('/api/jog', methods=['POST'])
