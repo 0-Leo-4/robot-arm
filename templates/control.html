@@ -190,22 +190,22 @@
       log('STOP → ' + r.data.status); 
       setUI(false); 
       document.getElementById('btnReset').disabled = false;
-      // Cambia stato GPIO (esempio: setta GPIO 17 HIGH)
-      axios.post('/api/gpio', { pin: 17, state: 1 })
-        .then(r => log('GPIO 17 → HIGH'))
-        .catch(e => log('Errore GPIO: ' + e));
+      // Cambia stato GPIO (usa gpiozero lato server)
+      axios.post('/api/gpiozero', { pin: 17, state: 1 })
+        .then(r => log('GPIOZero 17 → HIGH'))
+        .catch(e => log('Errore GPIOZero: ' + e));
       })
       .catch(e => log('Error: '+e));
     };
     document.getElementById('btnReset').onclick = () => {
       axios.post('/api/reset')
       .then(r => { 
-        log('RESET → ' + r.data.status); 
-        setUI(true); 
-        // Cambia stato GPIO (esempio: setta GPIO 17 LOW)
-        axios.post('/api/gpio', { pin: 17, state: 0 })
-        .then(r => log('GPIO 17 → LOW'))
-        .catch(e => log('Errore GPIO: ' + e));
+      log('RESET → ' + r.data.status); 
+      setUI(true); 
+      // Cambia stato GPIO (usa gpiozero lato server)
+      axios.post('/api/gpiozero', { pin: 17, state: 0 })
+        .then(r => log('GPIOZero 17 → LOW'))
+        .catch(e => log('Errore GPIOZero: ' + e));
       })
       .catch(e => log('Error: '+e));
     };
