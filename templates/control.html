@@ -112,10 +112,13 @@
 
     // Speed
     const spR = document.getElementById('speedRange'),
-          spV = document.getElementById('speedVal');
-    spR.onchange = () => {
+        spV = document.getElementById('speedVal');
+    spR.oninput = () => {
       const v = +spR.value;
       spV.textContent = v + '%';
+    };
+    spR.onchange = () => {
+      const v = +spR.value;
       axios.post('/api/set_speed', {speed_pct: v});
     };
 
