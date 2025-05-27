@@ -30,6 +30,7 @@ I2C_PORT       = 1
 emergency_active = False
 current_speed    = 100
 lock             = threading.Lock()
+lcd_lock         = threading.Lock()
 
 # —————————————————————
 #  INIZIALIZZA LCD via RPLCD
@@ -44,16 +45,15 @@ lcd = CharLCD(
 )
 
 def lcd_status(msg: str):
-    """Mostra sulla prima riga il messaggio e aggiorna la seconda con la velocità."""
-    lcd.cursor_pos = (0, 0)
-    lcd.write_string(msg[:LCD_COLUMNS].ljust(LCD_COLUMNS))
-    lcd_speed(current_speed)
+    with lcd_lock:
+        lcd.cursor_pos = (0, 0)
+        lcd.write_string(msg[:LCD_COLUMNS].ljust(LCD_COLUMNS))
 
 def lcd_speed(sp: int):
-    """Aggiorna la seconda riga con la velocità."""
-    lcd.cursor_pos = (1, 0)
-    txt = f"Spd:{sp}%".ljust(LCD_COLUMNS)
-    lcd.write_string(txt)
+    with lcd_lock:
+        lcd.cursor_pos = (1, 0)
+        txt = f"Spd:{sp}%".ljust(LCD_COLUMNS)
+        lcd.write_string(txt)
 
 # —————————————————————
 #  APRE/RICOLLEGA LA SERIAL AL PICO
@@ -112,7 +112,8 @@ def lcd_handler():
         elif line.startswith("SPEED|"):
             sp = line.split("|",1)[1]
             try:
-                lcd_speed(int(sp))
+                with lcd_lock:  # <-- Aggiungi qui
+                    lcd_speed(int(sp))
             except:
                 pass
         time.sleep(0.01)
