@@ -219,7 +219,6 @@ def reset_alarm():
     try_write({"cmd":"reset"})
     return jsonify(status='reset')
 
-# (in futuro aggiungerai /upload, /run_queue, /move_point, ecc.)
 
 @app.route('/api/upload', methods=['POST'])
 def upload_commands():
