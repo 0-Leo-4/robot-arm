@@ -219,6 +219,33 @@ def reset_alarm():
 
 # (in futuro aggiungerai /upload, /run_queue, /move_point, ecc.)
 
+@app.route('/api/upload', methods=['POST'])
+def upload_commands():
+    """
+    Riceve una lista di comandi da eseguire in coda.
+    Esempio payload: {"commands":[{"cmd":"grip","angle":0}]}
+    """
+    if emergency_active:
+        return jsonify(status='blocked'), 403
+    cmds = request.json.get('commands', [])
+    # Salva la coda in una variabile globale o file temporaneo
+    app.config['command_queue'] = cmds
+    return jsonify(status='uploaded')
+
+@app.route('/api/run_queue', methods=['POST'])
+def run_queue():
+    """
+    Esegue i comandi caricati tramite /api/upload.
+    """
+    if emergency_active:
+        return jsonify(status='blocked'), 403
+    cmds = app.config.get('command_queue', [])
+    for cmd in cmds:
+        try_write(cmd)
+        time.sleep(0.05)  # breve pausa tra i comandi
+    app.config['command_queue'] = []
+    return jsonify(status='queue_run')
+
 if __name__ == '__main__':
     lcd_status("SERVER START")
     lcd_speed(current_speed)
