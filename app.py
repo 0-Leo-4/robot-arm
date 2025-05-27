@@ -236,33 +236,48 @@ def capture_and_detect():
     while True:
         t0 = time.time()
         ret, frame = cap.read()
-        if not ret: continue
-        
+        if not ret:
+            continue
+
         # Process frame
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        blurred = cv2.GaussianBlur(gray, (9,9), 2)
-        circles = cv2.HoughCircles(blurred, cv2.HOUGH_GRADIENT, dp=1.2, minDist=50,
-                                 param1=50, param2=30, minRadius=10, maxRadius=100)
-        
-        # Always update the frame regardless of detections
+        blurred = cv2.GaussianBlur(gray, (9, 9), 2)
+        circles = cv2.HoughCircles(
+            blurred,
+            cv2.HOUGH_GRADIENT,
+            dp=1.2,
+            minDist=50,
+            param1=50,
+            param2=30,
+            minRadius=10,
+            maxRadius=100
+        )
+
+        # Always update the latest frame for streaming
         ret2, jpeg = cv2.imencode('.jpg', frame)
         if ret2:
             latest_frame = jpeg.tobytes()
-            
-        # Update detections
+
+        # Raccogli le nuove rilevazioni
         curr = []
         if circles is not None:
-            # prendi i valori float diretti
             for x, y, r in circles[0]:
                 curr.append({"x": float(x), "y": float(y), "r": float(r)})
 
+        # Associa ID stabili ai cerchi
         tracked = assign_ids_to_circles(curr)
 
+        # Calcola il delta time e aggiorna fps
+        dt = time.time() - t0
+        if dt > 0:
+            fps = round(1.0 / dt, 1)
+
+        # Aggiorna le detections in modo thread-safe
         with lock:
             detections = tracked
-            
-        # Maintain ~10 FPS processing
-        time.sleep(max(0, 0.1 - (time.time()-t0)))
+
+        # Mantieni il processing ad almeno ~10 FPS
+        time.sleep(max(0, 0.1 - (time.time() - t0)))
 
 threading.Thread(target=capture_and_detect, daemon=True).start()
 
