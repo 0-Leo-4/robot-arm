@@ -247,7 +247,6 @@
           .then(r => {
             log('Git Pull → ' + r.data.status);
             log(r.data.output);
-            // qui eventualmente riavvii il server o mostri istruzioni
           })
           .catch(e => log('Error git pull: ' + e));
       }
