@@ -3,6 +3,7 @@ import math, serial, time, json, sys, threading, os
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
 #Prova
+#prova 2
 
 # --- Global state ---
 emergency_active = False
