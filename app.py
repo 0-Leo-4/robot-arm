@@ -1,106 +1,142 @@
+#!/usr/bin/env python3
+import threading
+import serial
+import time
+import json
+import sys
+import os
+import math
+
 from flask import Flask, request, jsonify, render_template
-import threading, serial, time, json, sys, os, math
 import smbus2
-from i2c_lcd.i2c_lcd import I2cLcd
+from RPLCD.i2c import CharLCD
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
 # —————————————————————
 #  CONFIGURAZIONE GENERALE
 # —————————————————————
-SERIAL_PORT = '/dev/ttyACM0'
-BAUDRATE    = 115200
-LCD_I2C_ADDR = 0x27
+SERIAL_PORT    = '/dev/ttyACM0'
+BAUDRATE       = 115200
+
+# LCD HD44780 via PCF8574 su I²C bus 1
+LCD_I2C_ADDR   = 0x27   # modifica se diverso
+LCD_COLUMNS    = 16
+LCD_ROWS       = 2
+I2C_PORT       = 1
 
 # stato globale
 emergency_active = False
 current_speed    = 100
-current_steps    = [0,0,0]
-command_queue    = []
 lock             = threading.Lock()
 
 # —————————————————————
-#  INIZIALIZZA LCD I²C
+#  INIZIALIZZA LCD via RPLCD
 # —————————————————————
-i2c_bus = smbus2.SMBus(1)
-lcd = I2cLcd(i2c_bus, LCD_I2C_ADDR, rows=2, cols=16)
-def lcd_clear():
+lcd = CharLCD(
+    i2c_expander = 'PCF8574',
+    address      = LCD_I2C_ADDR,
+    port         = I2C_PORT,
+    cols         = LCD_COLUMNS,
+    rows         = LCD_ROWS,
+    auto_linebreaks = False
+)
+
+def lcd_status(msg: str):
+    """Mostra sulla prima riga il messaggio."""
     lcd.clear()
-def lcd_status(msg):
-    lcd.clear()
-    lcd.putstr(msg[:16])
-def lcd_speed(sp):
-    lcd.move_to(0,1)
-    lcd.putstr(f"Spd:{sp}%".ljust(16))
+    lcd.write_string(msg[:LCD_COLUMNS])
+
+def lcd_speed(sp: int):
+    """Aggiorna la seconda riga con la velocità."""
+    lcd.cursor_pos = (1, 0)
+    txt = f"Spd:{sp}%".ljust(LCD_COLUMNS)
+    lcd.write_string(txt)
 
 # —————————————————————
-#  APRE/RIAPRE LA SERIAL AL PICO
+#  APRE/RICOLLEGA LA SERIAL AL PICO
 # —————————————————————
 pico = None
 def open_pico():
     global pico
     try:
-        serial_port = SERIAL_PORT if not sys.platform.startswith('win') else 'COM6'
-        p = serial.Serial(serial_port, BAUDRATE, timeout=0.1, write_timeout=0.1)
+        port = SERIAL_PORT if not sys.platform.startswith('win') else 'COM6'
+        p = serial.Serial(port, BAUDRATE, timeout=0.1, write_timeout=0.1)
         time.sleep(2)
         p.reset_input_buffer()
         p.reset_output_buffer()
         pico = p
-    except Exception:
+        app.logger.info("Pico connesso su %s", port)
+    except Exception as e:
         pico = None
+        app.logger.warning("Impossibile aprire Pico: %s", e)
 
 open_pico()
 
-# thread di monitor per disconnessioni
+# thread che monitora la disconnessione fisica del Pico
 def monitor_pico():
     global pico
     while True:
         if pico:
             try:
                 _ = pico.in_waiting
-            except:
-                pico.close()
+            except Exception:
+                app.logger.warning("Pico disconnesso fisicamente")
+                try:
+                    pico.close()
+                except:
+                    pass
                 pico = None
         time.sleep(1)
 
 threading.Thread(target=monitor_pico, daemon=True).start()
 
 # —————————————————————
-#  HANDLER SERIALE → LCD
+#  THREAD DI FEEDBACK DAL PICO → LCD
 # —————————————————————
 def lcd_handler():
-    """Legge dal Pico via seriale e aggiorna l’I²C-LCD."""
-    ser = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=0.1)
+    """Legge la seriale del Pico per STATUS|… e SPEED|… e aggiorna l’LCD."""
     while True:
-        line = ser.readline().decode().strip()
-        if not line:
-            continue
+        if pico and pico.is_open:
+            try:
+                line = pico.readline().decode().strip()
+            except:
+                line = ''
+        else:
+            line = ''
         if line.startswith("STATUS|"):
             msg = line.split("|",1)[1]
-            lcd.clear()
-            lcd.putstr(msg[:16])
+            lcd_status(msg)
         elif line.startswith("SPEED|"):
             sp = line.split("|",1)[1]
-            lcd.move_to(0,1)
-            lcd.putstr(f"Spd:{sp}%".ljust(16))
-        # piccolo delay per non saturare la CPU
+            try:
+                lcd_speed(int(sp))
+            except:
+                pass
         time.sleep(0.01)
 
-# Avvia il thread alla fine delle dichiarazioni: 
 threading.Thread(target=lcd_handler, daemon=True).start()
 
-# wrapper scrittura Pico
-def try_write(cmd):
+# —————————————————————
+#  INVIO COMANDI AL PICO
+# —————————————————————
+def try_write(cmd: dict):
     global pico
     with lock:
-        if not pico or not pico.is_open:
+        if not pico or not getattr(pico, 'is_open', False):
             return
         try:
+            line = json.dumps(cmd) + "\n"
             pico.reset_output_buffer()
-            pico.write((json.dumps(cmd)+"\n").encode())
+            pico.write(line.encode())
             pico.flush()
-        except:
-            pico.close()
+        except Exception as e:
+            app.logger.warning("Write skipped, Pico disconnesso: %s", e)
+            try:
+                pico.close()
+            except:
+                pass
+            pico = None
 
 # —————————————————————
 #  FLASK ROUTES
@@ -110,11 +146,18 @@ def try_write(cmd):
 def index():
     return render_template('control.html')
 
-@app.route('/api/pico_status')
+@app.route('/video')
+def video_page():
+    return render_template('video.html',
+        conveyor_speed='120', resolution='1280x720',
+        fps='30', detection_interval='500 ms'
+    )
+
+@app.route('/api/pico_status', methods=['GET'])
 def pico_status():
-    if not pico or not pico.is_open:
+    if not pico or not getattr(pico, 'is_open', False):
         open_pico()
-    ok = pico and pico.is_open
+    ok = pico is not None and pico.is_open
     return jsonify(connected=ok)
 
 @app.route('/api/disconnect_pico', methods=['POST'])
@@ -122,6 +165,7 @@ def disconnect_pico():
     global pico
     if pico:
         pico.close()
+        pico = None
     return jsonify(status='disconnected')
 
 @app.route('/api/reconnect_pico', methods=['POST'])
@@ -132,18 +176,24 @@ def reconnect_pico():
 @app.route('/api/set_speed', methods=['POST'])
 def set_speed():
     global current_speed
-    v = request.json.get('speed_pct',100)
+    if emergency_active:
+        return jsonify(status='blocked'), 403
+    v = int(request.json.get('speed_pct', 100))
     current_speed = v
     lcd_speed(v)
-    try_write({"cmd":"speed","speed_pct":v})
+    try_write({"cmd":"speed", "speed_pct": v})
     return jsonify(status='ok')
 
 @app.route('/api/jog', methods=['POST'])
 def jog():
     if emergency_active:
         return jsonify(status='blocked'), 403
-    d = request.json
-    try_write({"axis": d['axis'], "mm": d['mm'], "speed_pct": current_speed})
+    data = request.json
+    try_write({
+        "axis": data['axis'],
+        "mm":   data['mm'],
+        "speed_pct": current_speed
+    })
     return jsonify(status='ok')
 
 @app.route('/api/homing', methods=['POST'])
@@ -167,8 +217,9 @@ def reset_alarm():
     try_write({"cmd":"reset"})
     return jsonify(status='reset')
 
-# in futuro: /upload, /run_queue, /move_point…
+# (in futuro aggiungerai /upload, /run_queue, /move_point, ecc.)
 
 if __name__ == '__main__':
     lcd_status("SERVER START")
+    lcd_speed(current_speed)
     app.run(host='0.0.0.0', port=5000, threaded=True)
