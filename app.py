@@ -179,24 +179,13 @@ def reconnect_pico():
 @app.route('/api/set_speed', methods=['POST'])
 def set_speed():
     global current_speed
-    try:
-        if emergency_active:
-            return jsonify(status='blocked'), 403
-
-        data = request.get_json(force=True)
-        v = int(data.get('speed_pct', 100))
-        # limitiamo il range per sicurezza
-        if not (5 <= v <= 100):
-            raise ValueError(f"Speed percent fuori range: {v}")
-
-        current_speed = v
-        lcd_speed(v)
-        try_write({"cmd": "set_speed", "value": v})
-        return jsonify(status='ok')
-
-    except Exception as e:
-        app.logger.error("Errore in set_speed: %s", e)
-        return jsonify(status='error', error=str(e)), 400
+    if emergency_active:
+        return jsonify(status='blocked'), 403
+    v = int(request.json.get('speed_pct', 100))
+    current_speed = v
+    lcd_speed(v)
+    try_write({"cmd":"speed", "speed_pct": v})
+    return jsonify(status='ok')
 
 @app.route('/api/jog', methods=['POST'])
 def jog():
@@ -285,7 +274,7 @@ def reboot_pico():
 @app.route('/api/git_pull', methods=['POST'])
 def git_pull():
     """
-    Esegue `git pull` nella cartella corrente, restituisce stdout/stderr,
+    Esegue git pull nella cartella corrente, restituisce stdout/stderr,
     e riavvia l'app Flask.
     """
     try:
