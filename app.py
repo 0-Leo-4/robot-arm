@@ -274,8 +274,8 @@ def reboot_pico():
 @app.route('/api/git_pull', methods=['POST'])
 def git_pull():
     """
-    Esegue `git pull` nella cartella corrente e restituisce
-    stdout/stderr.
+    Esegue `git pull` nella cartella corrente, restituisce stdout/stderr,
+    e riavvia l'app Flask.
     """
     try:
         # Esegui git pull
@@ -289,6 +289,9 @@ def git_pull():
         )
         output = result.stdout + result.stderr
         status = 'ok' if result.returncode == 0 else 'error'
+        # Riavvia l'app (processo Python)
+        if result.returncode == 0:
+            threading.Thread(target=lambda: (time.sleep(1), os._exit(0))).start()
         return jsonify(status=status, output=output)
     except Exception as e:
         return jsonify(status='error', output=str(e)), 500
