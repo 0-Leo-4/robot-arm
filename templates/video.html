@@ -177,15 +177,14 @@
             }
         });
 
-        // Handle canvas resizing: mettiamo il canvas alle dimensioni visualizzate
+        // Handle canvas resizing: interna = naturale, CSS = client
         function updateCanvasSize() {
-            const displayW = videoImage.clientWidth;
-            const displayH = videoImage.clientHeight;
-
-            canvas.width  = displayW;
-            canvas.height = displayH;
-            canvas.style.width  = displayW + 'px';
-            canvas.style.height = displayH + 'px';
+            // dimensione interna = risoluzione naturale del video
+            canvas.width  = videoImage.naturalWidth;
+            canvas.height = videoImage.naturalHeight;
+            // dimensione CSS = dimensione effettiva in pagina
+            canvas.style.width  = videoImage.clientWidth  + 'px';
+            canvas.style.height = videoImage.clientHeight + 'px';
         }
 
         videoImage.onload = () => {
@@ -195,36 +194,26 @@
         window.addEventListener('resize', updateCanvasSize);
 
         async function updateDetections() {
-            const res  = await fetch('/api/detections');
+            const res = await fetch('/api/detections');
             const { detections, fps } = await res.json();
             document.getElementById("fps-label").textContent = `FPS: ${fps}`;
             document.getElementById("fps-value").textContent = fps;
 
-            // Calcolo fattori di scala da "naturale" a "display"
-            const scaleX = videoImage.clientWidth  / videoImage.naturalWidth;
-            const scaleY = videoImage.clientHeight / videoImage.naturalHeight;
-            // (usiamo media per il raggio)
-            const scaleR = (scaleX + scaleY) / 2;
-
+            // Pulisce il canvas (in risoluzione naturale)
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.strokeStyle = '#00ffff';
             ctx.lineWidth   = 2;
             ctx.font        = '16px Arial';
             ctx.fillStyle   = '#ffffff';
 
-            // ordina per X naturale, ma disegna usando le coords scalate
-            const sorted = detections.slice().sort((a,b) => a.x - b.x);
+            // Disegna direttamente usando x,y,r naturali
+            const sorted = detections.slice().sort((a, b) => a.x - b.x);
             sorted.forEach((det, idx) => {
-                const label   = idx + 1;
-                const xDisp   = det.x * scaleX;
-                const yDisp   = det.y * scaleY;
-                const rDisp   = det.r * scaleR;
-
+                const label = idx + 1;
                 ctx.beginPath();
-                ctx.arc(xDisp, yDisp, rDisp, 0, 2*Math.PI);
+                ctx.arc(det.x, det.y, det.r, 0, 2 * Math.PI);
                 ctx.stroke();
-
-                ctx.fillText(label.toString(), xDisp + 5, yDisp - 5);
+                ctx.fillText(label.toString(), det.x + det.r + 5, det.y - det.r - 5);
             });
 
             updateTableAndChart(detections);
@@ -234,8 +223,7 @@
             tableBody.innerHTML = '';
             scatterChart.data.datasets[0].data = [];
 
-            // La tabella e il grafico lavorano sulle coords naturali
-            const sorted = detections.slice().sort((a,b) => a.x - b.x);
+            const sorted = detections.slice().sort((a, b) => a.x - b.x);
             sorted.forEach((det, idx) => {
                 const label = idx + 1;
                 const xi    = Math.round(det.x);
