@@ -31,16 +31,25 @@
             background: #111214;
             border-radius: 10px;
             box-shadow: 0 0 10px #000a;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             position: relative;
         }
-        canvas#video-canvas {
+        #video-image {
             width: 100%;
             height: 100%;
             object-fit: cover;
             border-radius: 10px;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        #video-canvas {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            pointer-events: none;
         }
         .fps-label-outside {
             margin-top: 10px;
@@ -101,6 +110,7 @@
     <div class="container">
         <div class="video-section">
             <div class="video-window">
+                <img src="/video_feed" id="video-image">
                 <canvas id="video-canvas"></canvas>
             </div>
             <div class="fps-label-outside" id="fps-label">FPS: --</div>
@@ -134,10 +144,12 @@
     </div>
 
     <script>
+        const videoImage = document.getElementById('video-image');
         const canvas = document.getElementById('video-canvas');
         const ctx = canvas.getContext('2d');
         const tableBody = document.getElementById('table-body');
 
+        // Initialize chart
         const chartCtx = document.getElementById('chart').getContext('2d');
         const scatterChart = new Chart(chartCtx, {
             type: 'scatter',
@@ -150,8 +162,14 @@
             },
             options: {
                 scales: {
-                    x: { title: { display: true, text: 'X (px)' }, beginAtZero: true },
-                    y: { title: { display: true, text: 'Y (px)' }, beginAtZero: true }
+                    x: { 
+                        title: { display: true, text: 'X (px)' }, 
+                        beginAtZero: true 
+                    },
+                    y: { 
+                        title: { display: true, text: 'Y (px)' }, 
+                        beginAtZero: true 
+                    }
                 },
                 plugins: {
                     legend: { display: false }
@@ -159,52 +177,75 @@
             }
         });
 
-        function drawDetections(frameUrl, detections) {
-            const image = new Image();
-            image.onload = function () {
-                canvas.width = image.width;
-                canvas.height = image.height;
-                ctx.drawImage(image, 0, 0);
-                ctx.strokeStyle = '#00ffff';
-                ctx.lineWidth = 2;
-                detections.forEach((det, index) => {
-                    ctx.beginPath();
-                    ctx.arc(det.x, det.y, det.r || 10, 0, 2 * Math.PI);
-                    ctx.stroke();
-                    ctx.fillStyle = "#ffffff";
-                    ctx.fillText(`P${index + 1}`, det.x + 5, det.y - 5);
-                });
-            };
-            image.src = frameUrl;
+        // Handle canvas resizing
+        function updateCanvasSize() {
+            canvas.width = videoImage.clientWidth;
+            canvas.height = videoImage.clientHeight;
         }
 
+        videoImage.onload = () => {
+            updateCanvasSize();
+            videoImage.style.display = 'block';
+        };
+
+        window.addEventListener('resize', updateCanvasSize);
+
+        // Update detections and overlay
         async function updateDetections() {
             try {
                 const res = await fetch('/api/detections');
                 const data = await res.json();
-                const { frame_url, detections, fps } = data;
+                const { detections, fps } = data;
 
-                drawDetections(frame_url, detections);
+                // Update FPS display
                 document.getElementById("fps-label").textContent = `FPS: ${fps}`;
                 document.getElementById("fps-value").textContent = fps;
 
-                tableBody.innerHTML = '';
-                scatterChart.data.datasets[0].data = [];
+                // Clear previous drawings
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                detections.forEach((det, i) => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `<td>P${i + 1}</td><td>${det.x}</td><td>${det.y}</td>`;
-                    tableBody.appendChild(row);
-                    scatterChart.data.datasets[0].data.push({ x: det.x, y: det.y });
+                // Draw new detections
+                ctx.strokeStyle = '#00ffff';
+                ctx.lineWidth = 2;
+                ctx.font = '14px Arial';
+                ctx.fillStyle = '#ffffff';
+
+                detections.forEach((det, index) => {
+                    // Convert coordinates to canvas size
+                    const x = (det.x / videoImage.naturalWidth) * canvas.width;
+                    const y = (det.y / videoImage.naturalHeight) * canvas.height;
+                    const r = (det.r / videoImage.naturalWidth) * canvas.width;
+
+                    ctx.beginPath();
+                    ctx.arc(x, y, r, 0, 2 * Math.PI);
+                    ctx.stroke();
+                    ctx.fillText(`P${index + 1}`, x + 5, y - 5);
                 });
 
-                scatterChart.update();
+                // Update table and chart
+                updateTableAndChart(detections);
             } catch (error) {
                 console.error("Error fetching detections:", error);
             }
         }
 
-        setInterval(updateDetections, 500); // Update every 0.5s
+        // Update table and chart data
+        function updateTableAndChart(detections) {
+            tableBody.innerHTML = '';
+            scatterChart.data.datasets[0].data = [];
+
+            detections.forEach((det, i) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td>P${i + 1}</td><td>${det.x}</td><td>${det.y}</td>`;
+                tableBody.appendChild(row);
+                scatterChart.data.datasets[0].data.push({ x: det.x, y: det.y });
+            });
+
+            scatterChart.update();
+        }
+
+        // Start periodic updates
+        setInterval(updateDetections, 100);
     </script>
 </body>
 </html>

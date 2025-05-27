@@ -134,23 +134,28 @@ def capture_and_detect():
         t0 = time.time()
         ret, frame = cap.read()
         if not ret: continue
+        
+        # Process frame
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         blurred = cv2.GaussianBlur(gray, (9,9), 2)
         circles = cv2.HoughCircles(blurred, cv2.HOUGH_GRADIENT, dp=1.2, minDist=50,
-                                   param1=50, param2=30, minRadius=10, maxRadius=100)
+                                 param1=50, param2=30, minRadius=10, maxRadius=100)
+        
+        # Always update the frame regardless of detections
+        ret2, jpeg = cv2.imencode('.jpg', frame)
+        if ret2:
+            latest_frame = jpeg.tobytes()
+            
+        # Update detections
         curr = []
         if circles is not None:
             for x,y,r in np.round(circles[0]).astype(int):
                 curr.append({"x":int(x),"y":int(y),"r":int(r)})
-                cv2.circle(frame, (x,y), r, (0,255,0), 2)
+        
         with lock:
             detections = curr
-        # encode in-memory
-        ret2, jpeg = cv2.imencode('.jpg', frame)
-        if ret2:
-            latest_frame = jpeg.tobytes()
-        # compute fps
-        fps = round(1.0/(time.time()-t0),1)
+            
+        # Maintain ~10 FPS processing
         time.sleep(max(0, 0.1 - (time.time()-t0)))
 
 threading.Thread(target=capture_and_detect, daemon=True).start()
@@ -169,6 +174,16 @@ def video_page():
         conveyor_speed='120', resolution='1280x720',
         fps=f"{fps}", detection_interval='100 ms'
     )
+    
+@app.route('/video_feed')
+def video_feed():
+    def generate():
+        while True:
+            if latest_frame:
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + latest_frame + b'\r\n')
+            time.sleep(0.033)  # ~30 FPS
+    return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/api/detections')
 def api_detections():
