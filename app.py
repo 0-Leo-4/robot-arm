@@ -274,7 +274,7 @@ def reboot_pico():
 @app.route('/api/git_pull', methods=['POST'])
 def git_pull():
     """
-    Esegue git pull nella cartella corrente, restituisce stdout/stderr,
+    Esegue `git pull` nella cartella corrente, restituisce stdout/stderr,
     e riavvia l'app Flask.
     """
     try:

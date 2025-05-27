@@ -104,7 +104,7 @@
     const logEl  = document.getElementById('log');
     let repeatId = null;
     function log(msg){
-      logEl.textContent = [${new Date().toLocaleTimeString()}] ${msg}\n + logEl.textContent;
+      logEl.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + logEl.textContent;
     }
     function setUI(on){
       document.querySelectorAll('button, input').forEach(el=>el.disabled=!on);
@@ -161,7 +161,7 @@
     // Jog helper
     function startJog(a,m){
       axios.post('/api/jog',{axis:a,mm:m})
-        .then(r=>log(Jog ${a} ${m>0?'+':'-'}1 → ${r.data.status}))
+        .then(r=>log(`Jog ${a} ${m>0?'+':'-'}1 → ${r.data.status}`))
         .catch(e=>log('Error: '+e));
       repeatId = setTimeout(()=> startJog(a,m), 200);
     }
@@ -247,6 +247,7 @@
           .then(r => {
             log('Git Pull → ' + r.data.status);
             log(r.data.output);
+            // qui eventualmente riavvii il server o mostri istruzioni
           })
           .catch(e => log('Error git pull: ' + e));
       }
