@@ -24,8 +24,6 @@ SERIAL_PORT    = '/dev/ttyACM0'
 BAUDRATE       = 115200
 RELAY_GPIO = 17
 relay = OutputDevice(17)
-
-
 detections = []
 
 # LCD HD44780 via PCF8574 su I²C bus 1
