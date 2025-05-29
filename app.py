@@ -49,6 +49,12 @@ lock = threading.Lock()
 lcd_lock = threading.Lock()
 latest_frame = None
 
+# Variabili per calibrazione visione
+CALIBRATION_MATRIX = None
+CALIBRATION_POINTS = []  # [(robot_x, robot_y, img_x, img_y)]
+CALIBRATION_ACTIVE = False
+CALIBRATION_OBJECT = None
+
 # —————————————————————
 #  INIZIALIZZA LCD via RPLCD
 # —————————————————————
@@ -136,6 +142,35 @@ def try_write(cmd: dict):
         except Exception:
             pico.close(); pico = None
 
+def get_current_robot_position():
+    """Ottieni la posizione corrente dal Pico"""
+    global pico
+    if not pico or not pico.is_open:
+        return None
+    
+    try:
+        try_write({"cmd": "getpos"})
+        time.sleep(0.1)
+        if pico.in_waiting:
+            response = pico.readline().decode().strip()
+            if response.startswith("POS|"):
+                return json.loads(response[4:])
+    except Exception as e:
+        app.logger.error("Errore lettura posizione: %s", str(e))
+    return None
+
+def vision_to_robot_coordinates(img_x, img_y):
+    """Converti coordinate immagine a coordinate robot"""
+    global CALIBRATION_MATRIX
+    
+    if CALIBRATION_MATRIX is None:
+        raise ValueError("Calibrazione non completata")
+    
+    # Converti le coordinate usando la matrice di trasformazione
+    src_point = np.array([[img_x, img_y]], dtype=np.float32)
+    dst_point = cv2.perspectiveTransform(src_point.reshape(1, -1, 2), np.array(CALIBRATION_MATRIX))
+    return dst_point[0][0][0], dst_point[0][0][1]
+
 def parse_gcode_to_moves(code_block, mode='absolute'):
     """
     Converte un blocco di G0/G1 in una lista di comandi 
@@ -201,7 +236,6 @@ def parse_gcode_to_moves(code_block, mode='absolute'):
                     err[axis] -= max_steps
     return moves
 
-
 def assign_ids_to_circles(new_circles):
     """
     new_circles: list di dict {"x":float, "y":float, "r":float}
@@ -259,7 +293,7 @@ def assign_ids_to_circles(new_circles):
     return results
 
 def capture_and_detect():
-    global detections, fps, latest_frame
+    global detections, fps, latest_frame, CALIBRATION_OBJECT
     cap = cv2.VideoCapture(0)
     while True:
         t0 = time.time()
@@ -267,16 +301,9 @@ def capture_and_detect():
         if not ret:
             continue
 
-        # Converti in scala di grigi
+        # Process frame
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-        # Inverti l'immagine: ora i cerchi neri diventano bianchi su sfondo nero
-        inverted = cv2.bitwise_not(gray)
-
-        # Applica un leggero blur per ridurre il rumore
-        blurred = cv2.GaussianBlur(inverted, (9, 9), 2)
-
-        # Trova i cerchi (ora bianchi) su sfondo nero
+        blurred = cv2.GaussianBlur(gray, (9, 9), 2)
         circles = cv2.HoughCircles(
             blurred,
             cv2.HOUGH_GRADIENT,
@@ -297,14 +324,7 @@ def capture_and_detect():
         curr = []
         if circles is not None:
             for x, y, r in circles[0]:
-                # Controlla che il cerchio sia effettivamente nero nell'immagine originale
-                # Calcola la media dei pixel all'interno del cerchio
-                mask = np.zeros_like(gray)
-                cv2.circle(mask, (int(x), int(y)), int(r * 0.8), 255, -1)
-                mean_val = cv2.mean(gray, mask=mask)[0]
-                # Soglia: considera nero se la media è sufficientemente bassa
-                if mean_val < 60:  # puoi regolare questa soglia se necessario
-                    curr.append({"x": float(x), "y": float(y), "r": float(r)})
+                curr.append({"x": float(x), "y": float(y), "r": float(r)})
 
         # Associa ID stabili ai cerchi
         tracked = assign_ids_to_circles(curr)
@@ -603,6 +623,156 @@ def send_gcode():
         time.sleep(0.02)
     return jsonify(status='ok', sent=len(moves))
 
+# —————————————————————
+#  VISION INTEGRATION
+# —————————————————————
+
+@app.route('/api/start_calibration', methods=['POST'])
+def start_calibration():
+    """Avvia una nuova sessione di calibrazione"""
+    global CALIBRATION_POINTS, CALIBRATION_ACTIVE
+    CALIBRATION_POINTS = []
+    CALIBRATION_ACTIVE = True
+    return jsonify(status='calibration_started', message="Sposta il robot sul primo punto di calibrazione")
+
+@app.route('/api/add_calibration_point', methods=['POST'])
+def add_calibration_point():
+    """Aggiungi un punto di calibrazione"""
+    global CALIBRATION_POINTS, CALIBRATION_ACTIVE, CALIBRATION_OBJECT
+    
+    if not CALIBRATION_ACTIVE:
+        return jsonify(status='error', error='Calibrazione non attiva'), 400
+    
+    # Trova l'oggetto più vicino al centro
+    with lock:
+        if not detections:
+            return jsonify(status='error', error='Nessun oggetto rilevato'), 400
+        
+        # Trova l'oggetto più vicino al centro dell'immagine
+        center_x, center_y = 320, 240  # Valori medi per risoluzione 640x480
+        closest = min(detections, key=lambda d: math.hypot(d['x']-center_x, d['y']-center_y))
+        CALIBRATION_OBJECT = closest['id']
+        
+        # Ottieni coordinate immagine
+        img_x = closest['x']
+        img_y = closest['y']
+    
+    # Ottieni coordinate robot
+    robot_pos = get_current_robot_position()
+    if not robot_pos:
+        return jsonify(status='error', error='Impossibile leggere posizione robot'), 500
+    
+    robot_x = robot_pos['BASE']
+    robot_y = robot_pos['M1']
+    
+    # Salva il punto
+    CALIBRATION_POINTS.append((robot_x, robot_y, img_x, img_y))
+    
+    return jsonify(
+        status='point_added', 
+        count=len(CALIBRATION_POINTS),
+        robot_x=robot_x,
+        robot_y=robot_y,
+        img_x=img_x,
+        img_y=img_y
+    )
+
+@app.route('/api/calculate_calibration', methods=['POST'])
+def calculate_calibration():
+    """Calcola la matrice di trasformazione"""
+    global CALIBRATION_MATRIX, CALIBRATION_POINTS, CALIBRATION_ACTIVE
+    
+    if not CALIBRATION_ACTIVE:
+        return jsonify(status='error', error='Calibrazione non attiva'), 400
+    
+    if len(CALIBRATION_POINTS) < 3:
+        return jsonify(status='error', error='Almeno 3 punti richiesti'), 400
+    
+    try:
+        # Prepara i punti per OpenCV
+        src_pts = []  # Immagine
+        dst_pts = []  # Robot
+        
+        for r_x, r_y, i_x, i_y in CALIBRATION_POINTS:
+            src_pts.append([i_x, i_y])
+            dst_pts.append([r_x, r_y])
+        
+        src_pts = np.array(src_pts, dtype=np.float32)
+        dst_pts = np.array(dst_pts, dtype=np.float32)
+        
+        # Calcola la matrice di omografia
+        M, _ = cv2.findHomography(src_pts, dst_pts)
+        CALIBRATION_MATRIX = M.tolist()
+        CALIBRATION_ACTIVE = False
+        
+        return jsonify(
+            status='calibration_complete', 
+            matrix=CALIBRATION_MATRIX,
+            points=CALIBRATION_POINTS
+        )
+    except Exception as e:
+        return jsonify(status='error', error=str(e)), 500
+
+@app.route('/api/get_calibration_status', methods=['GET'])
+def get_calibration_status():
+    """Restituisce lo stato della calibrazione"""
+    return jsonify(
+        active=CALIBRATION_ACTIVE,
+        points=CALIBRATION_POINTS,
+        calibrated=CALIBRATION_MATRIX is not None
+    )
+
+@app.route('/api/move_to_object', methods=['POST'])
+def move_to_object():
+    """Muovi il robot verso un oggetto rilevato"""
+    if emergency_active:
+        return jsonify(status='blocked'), 403
+    
+    data = request.json
+    obj_id = data.get('object_id')
+    
+    # Trova l'oggetto nelle rilevazioni correnti
+    with lock:
+        obj = next((d for d in detections if d['id'] == obj_id), None)
+    
+    if not obj:
+        return jsonify(status='error', error='Oggetto non trovato'), 404
+    
+    try:
+        # Converti coordinate visione → robot
+        robot_x, robot_y = vision_to_robot_coordinates(obj['x'], obj['y'])
+        
+        # Altezza di sicurezza (da configurare)
+        safe_z = 50.0  
+        
+        # Altezza di pick (da configurare)
+        pick_z = 10.0   
+        
+        # 1. Sposta in sicurezza sopra l'oggetto
+        move_sequence = [
+            {"cmd": "move_abs", "axis": "BASE", "pos": robot_x, "speed_pct": 70},
+            {"cmd": "move_abs", "axis": "M1", "pos": robot_y, "speed_pct": 70},
+            {"cmd": "move_abs", "axis": "M2", "pos": safe_z, "speed_pct": 50}
+        ]
+        
+        # 2. Scendi per il pick
+        move_sequence.append({"cmd": "move_abs", "axis": "M2", "pos": pick_z, "speed_pct": 30})
+        
+        # 3. Chiudi gripper
+        move_sequence.append({"cmd": "grip", "angle": 80})  # Angolo chiusura
+        
+        # 4. Risali in sicurezza
+        move_sequence.append({"cmd": "move_abs", "axis": "M2", "pos": safe_z, "speed_pct": 50})
+        
+        # Esegui la sequenza
+        for cmd in move_sequence:
+            try_write(cmd)
+            time.sleep(0.5)  # Breve pausa tra i movimenti
+        
+        return jsonify(status='pick_completed')
+    
+    except Exception as e:
+        return jsonify(status='error', error=str(e)), 500
 
 if __name__ == '__main__':
     lcd_status("SERVER START")
