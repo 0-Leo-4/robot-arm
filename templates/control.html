@@ -202,7 +202,12 @@
 
     // Jog with hold
     let jogTimer;
-    function startJog(ax, m){ axios.post('/api/jog',{axis:ax,mm:m}).then(r=>log(`Jog ${ax} ${m>0?'+':'-'}1 → ${r.data.status}`)); jogTimer = setTimeout(()=>startJog(ax,m), 200); }
+    function startJog(ax, m){ 
+      axios.post('/api/jog',{axis:ax,mm:m})
+        .then(r=>log(`Jog ${ax} ${m>0?'+':'-'}1 → ${r.data.status}`))
+        .catch(e => log(`Jog error: ${e}`));
+      jogTimer = setTimeout(()=>startJog(ax,m), 200); 
+    }
     function stopJog(){ clearTimeout(jogTimer); }
     [['jXpos','X',1],['jYpos','Y',1],['jZpos','Z',1],
      ['jXneg','X',-1],['jYneg','Y',-1],['jZneg','Z',-1]
@@ -237,7 +242,9 @@
     document.getElementById('btnSendGcode').onclick = () => {
       const code = document.getElementById('gcodeInput').value.trim();
       if(!code) return log('Nessun G-code da inviare');
-      axios.post('/api/gcode',{ code }).then(r=>log(`Movimenti inviati: ${r.data.sent}`));
+      axios.post('/api/gcode',{ code })
+        .then(r=>log(`Movimenti inviati: ${r.data.sent}`))
+        .catch(e => log(`G-code error: ${e}`));
     };
 
     // Vision Calibration

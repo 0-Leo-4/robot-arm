@@ -150,7 +150,7 @@ def get_current_robot_position():
     
     try:
         try_write({"cmd": "getpos"})
-        time.sleep(0.1)
+        time.sleep(0.5)  # Increased wait time
         if pico.in_waiting:
             response = pico.readline().decode().strip()
             if response.startswith("POS|"):
@@ -165,7 +165,7 @@ def get_current_position():
     pos = get_current_robot_position()
     if pos:
         return jsonify(status='ok', position=pos)
-    return jsonify(status='error'), 500
+    return jsonify(status='error', error="Position not available"), 500
 
 def vision_to_robot_coordinates(img_x, img_y):
     """Converti coordinate immagine a coordinate robot"""
@@ -225,10 +225,10 @@ def parse_gcode_to_moves(code_block, mode='absolute'):
         # Contatori Bresenham
         err = {axis:0 for axis in steps}
 
-        # Per ogni “tacca” del passo
+        # Per ogni "tacca" del passo
         for i in range(max_steps):
             for axis, n_steps in steps.items():
-                # L’errore accumulato
+                # L'errore accumulato
                 err[axis] += n_steps
                 if err[axis] >= max_steps:
                     # dobbiamo fare uno step su questo asse
@@ -303,6 +303,9 @@ def assign_ids_to_circles(new_circles):
 def capture_and_detect():
     global detections, fps, latest_frame, CALIBRATION_OBJECT
     cap = cv2.VideoCapture(0)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    
     while True:
         t0 = time.time()
         ret, frame = cap.read()
@@ -339,12 +342,13 @@ def capture_and_detect():
         # Raccogli le nuove rilevazioni
         curr = []
         if circles is not None:
-            for x, y, r in circles[0]:
+            circles = np.uint16(np.around(circles))
+            for circle in circles[0, :]:
+                x, y, r = circle
                 # Controlla che il centro sia effettivamente nero nell'immagine originale
-                cx, cy = int(round(x)), int(round(y))
-                if 0 <= cx < gray.shape[1] and 0 <= cy < gray.shape[0]:
+                if 0 <= y < gray.shape[0] and 0 <= x < gray.shape[1]:
                     # Considera "nero" se il valore di grigio è basso
-                    if gray[cy, cx] < 60:
+                    if gray[y, x] < 60:
                         curr.append({"x": float(x), "y": float(y), "r": float(r)})
 
         # Associa ID stabili ai cerchi
@@ -595,49 +599,8 @@ def send_gcode():
     code = payload.get('code', '')
 
     # parse rettilineo con DDA e mapping
-    moves = []
-    pos = {'X': 0.0, 'Y': 0.0, 'Z': 0.0}
-
-    for line in code.splitlines():
-        line = line.split(';',1)[0].strip()
-        m = re.match(r'^(G0|G1)\s*(.*)', line, re.IGNORECASE)
-        if not m:
-            continue
-
-        # estrai target
-        coords = { letter.upper(): float(val) 
-                   for letter,val in re.findall(r'([XYZ])([-+]?[0-9]*\.?[0-9]+)', m.group(2)) }
-
-        # calcola deltas e aggiorna pos
-        deltas = {}
-        for ax in ('X','Y','Z'):
-            if ax in coords:
-                tgt = coords[ax]
-                delta = tgt - pos[ax]
-                pos[ax] = tgt
-                deltas[ax] = delta
-
-        if not deltas:
-            continue
-
-        # passi interi per asse
-        steps = {ax: int(abs(deltas[ax])*STEP_PER_MM) for ax in deltas}
-        max_steps = max(steps.values())
-        err = {ax: 0 for ax in steps}
-
-        # DDA Bresenham
-        for _ in range(max_steps):
-            for ax, n in steps.items():
-                err[ax] += n
-                if err[ax] >= max_steps:
-                    sign = 1 if deltas[ax] >= 0 else -1
-                    moves.append({
-                        "axis": AXIS_MAP[ax],
-                        "mm":   sign*(1.0/STEP_PER_MM),
-                        "speed_pct": current_speed
-                    })
-                    err[ax] -= max_steps
-
+    moves = parse_gcode_to_moves(code)
+    
     # invia tutti i moves al Pico
     for mv in moves:
         try_write(mv)
