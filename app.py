@@ -656,40 +656,30 @@ def start_calibration():
     global CALIBRATION_POINTS, CALIBRATION_ACTIVE
     CALIBRATION_POINTS = []
     CALIBRATION_ACTIVE = True
-    return jsonify(status='calibration_started', message="Sposta il robot sul primo punto di calibrazione")
+    return jsonify(
+        status='calibration_started', 
+        message="Sposta il robot sul primo punto di calibrazione"
+    )
 
 @app.route('/api/add_calibration_point', methods=['POST'])
 def add_calibration_point():
     """Aggiungi un punto di calibrazione"""
-    global CALIBRATION_POINTS, CALIBRATION_ACTIVE, CALIBRATION_OBJECT
+    global CALIBRATION_POINTS, CALIBRATION_ACTIVE
     
     if not CALIBRATION_ACTIVE:
         return jsonify(status='error', error='Calibrazione non attiva'), 400
     
-    # Trova l'oggetto più vicino al centro
-    with lock:
-        if not detections:
-            return jsonify(status='error', error='Nessun oggetto rilevato'), 400
-        
-        # Trova l'oggetto più vicino al centro dell'immagine
-        center_x, center_y = 320, 240  # Valori medi per risoluzione 640x480
-        closest = min(detections, key=lambda d: math.hypot(d['x']-center_x, d['y']-center_y))
-        CALIBRATION_OBJECT = closest['id']
-        
-        # Ottieni coordinate immagine
-        img_x = closest['x']
-        img_y = closest['y']
+    data = request.json
+    img_x = data.get('img_x')
+    img_y = data.get('img_y')
+    robot_x = data.get('robot_x')
+    robot_y = data.get('robot_y')
     
-    # Ottieni coordinate robot
-    robot_pos = get_current_robot_position()
-    if not robot_pos:
-        return jsonify(status='error', error='Impossibile leggere posizione robot'), 500
-    
-    robot_x = robot_pos['BASE']
-    robot_y = robot_pos['M1']
+    if None in (img_x, img_y, robot_x, robot_y):
+        return jsonify(status='error', error='Dati mancanti'), 400
     
     # Salva il punto
-    CALIBRATION_POINTS.append((robot_x, robot_y, img_x, img_y))
+    CALIBRATION_POINTS.append((float(robot_x), float(robot_y), float(img_x), float(img_y)))
     
     return jsonify(
         status='point_added', 
@@ -773,19 +763,19 @@ def move_to_object():
         
         # 1. Sposta in sicurezza sopra l'oggetto
         move_sequence = [
-            {"cmd": "move_abs", "axis": "BASE", "pos": robot_x, "speed_pct": 70},
-            {"cmd": "move_abs", "axis": "M1", "pos": robot_y, "speed_pct": 70},
-            {"cmd": "move_abs", "axis": "M2", "pos": safe_z, "speed_pct": 50}
+            {"axis": "BASE", "mm": robot_x, "speed_pct": 70},
+            {"axis": "M1", "mm": robot_y, "speed_pct": 70},
+            {"axis": "M2", "mm": safe_z, "speed_pct": 50}
         ]
         
         # 2. Scendi per il pick
-        move_sequence.append({"cmd": "move_abs", "axis": "M2", "pos": pick_z, "speed_pct": 30})
+        move_sequence.append({"axis": "M2", "mm": pick_z, "speed_pct": 30})
         
         # 3. Chiudi gripper
         move_sequence.append({"cmd": "grip", "angle": 80})  # Angolo chiusura
         
         # 4. Risali in sicurezza
-        move_sequence.append({"cmd": "move_abs", "axis": "M2", "pos": safe_z, "speed_pct": 50})
+        move_sequence.append({"axis": "M2", "mm": safe_z, "speed_pct": 50})
         
         # Esegui la sequenza
         for cmd in move_sequence:
