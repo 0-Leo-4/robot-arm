@@ -267,9 +267,16 @@ def capture_and_detect():
         if not ret:
             continue
 
-        # Process frame
+        # Converti in scala di grigi
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        blurred = cv2.GaussianBlur(gray, (9, 9), 2)
+
+        # Inverti l'immagine: ora i cerchi neri diventano bianchi su sfondo nero
+        inverted = cv2.bitwise_not(gray)
+
+        # Applica un leggero blur per ridurre il rumore
+        blurred = cv2.GaussianBlur(inverted, (9, 9), 2)
+
+        # Trova i cerchi (ora bianchi) su sfondo nero
         circles = cv2.HoughCircles(
             blurred,
             cv2.HOUGH_GRADIENT,
@@ -290,7 +297,14 @@ def capture_and_detect():
         curr = []
         if circles is not None:
             for x, y, r in circles[0]:
-                curr.append({"x": float(x), "y": float(y), "r": float(r)})
+                # Controlla che il cerchio sia effettivamente nero nell'immagine originale
+                # Calcola la media dei pixel all'interno del cerchio
+                mask = np.zeros_like(gray)
+                cv2.circle(mask, (int(x), int(y)), int(r * 0.8), 255, -1)
+                mean_val = cv2.mean(gray, mask=mask)[0]
+                # Soglia: considera nero se la media è sufficientemente bassa
+                if mean_val < 60:  # puoi regolare questa soglia se necessario
+                    curr.append({"x": float(x), "y": float(y), "r": float(r)})
 
         # Associa ID stabili ai cerchi
         tracked = assign_ids_to_circles(curr)
