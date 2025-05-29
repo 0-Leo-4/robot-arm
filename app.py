@@ -159,6 +159,14 @@ def get_current_robot_position():
         app.logger.error("Errore lettura posizione: %s", str(e))
     return None
 
+@app.route('/api/get_current_position', methods=['GET'])
+def get_current_position():
+    """Ottieni la posizione corrente per il frontend"""
+    pos = get_current_robot_position()
+    if pos:
+        return jsonify(status='ok', position=pos)
+    return jsonify(status='error'), 500
+
 def vision_to_robot_coordinates(img_x, img_y):
     """Converti coordinate immagine a coordinate robot"""
     global CALIBRATION_MATRIX
