@@ -312,16 +312,14 @@ def capture_and_detect():
         # Converti in scala di grigi
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        # Inverti l'immagine per rendere i cerchi neri "luminosi" per HoughCircles
-        inverted = cv2.bitwise_not(gray)
-
-        # Applica una soglia per evidenziare solo i neri su sfondo bianco
-        _, thresh = cv2.threshold(inverted, 200, 255, cv2.THRESH_BINARY)
+        # Applica una soglia per ottenere solo i pixel neri (valori bassi)
+        # Soglia bassa: tutto ciò che è "abbastanza nero" diventa bianco (255), il resto nero (0)
+        _, mask = cv2.threshold(gray, 60, 255, cv2.THRESH_BINARY_INV)
 
         # Sfocatura per ridurre il rumore
-        blurred = cv2.GaussianBlur(thresh, (9, 9), 2)
+        blurred = cv2.GaussianBlur(mask, (9, 9), 2)
 
-        # Trova i cerchi (neri su bianco)
+        # Trova i cerchi neri su sfondo bianco
         circles = cv2.HoughCircles(
             blurred,
             cv2.HOUGH_GRADIENT,
