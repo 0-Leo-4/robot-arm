@@ -32,6 +32,7 @@ tracked_circles = {}   # { id: {"x":…, "y":…, "r":…} }
 max_lost_distance = 50  # px oltre i quali consideriamo sparito
 
 AXIS_MAP = {'X': 'BASE', 'Y': 'M1', 'Z': 'M2'}
+STEP_PER_MM = 160
 
 # LCD HD44780 via PCF8574 su I²C bus 1
 LCD_I2C_ADDR   = 0x27   # modifica se diverso
@@ -137,44 +138,69 @@ def try_write(cmd: dict):
 
 def parse_gcode_to_moves(code_block, mode='absolute'):
     """
-    Prende un blocco di G-code (solo G0/G1), restituisce lista di comandi 
-    {"axis": "X"/"Y"/"Z", "mm": valore, "speed_pct": current_speed}.
-    mode: 'absolute' o 'relative'
+    Converte un blocco di G0/G1 in una lista di comandi 
+    {'axis':'BASE'|'M1'|'M2','mm':delta,'speed_pct':...}
+    usando una DDA su 3 assi per il moto rettilineo.
     """
-    moves = []
-    # manteniamo la posizione corrente
+    AXIS_MAP = {'X': 'BASE', 'Y': 'M1', 'Z': 'M2'}
+    # Posizione attuale in mm
     pos = {'X': 0.0, 'Y': 0.0, 'Z': 0.0}
+    moves = []
+
     for line in code_block.splitlines():
-        line = line.split(';',1)[0].strip()  # rimuove commenti
-        if not line: 
-            continue
+        line = line.split(';',1)[0].strip()
         m = re.match(r'^(G0|G1)\s*(.*)', line, re.IGNORECASE)
-        if not m:
-            continue
-        params = m.group(2)
-        # estrai parametri
+        if not m: continue
+        # Estrai nuovi target
         coords = {}
-        for token in re.findall(r'([XYZF])([-+]?[0-9]*\.?[0-9]+)', params, re.IGNORECASE):
-            letter, num = token
-            coords[letter.upper()] = float(num)
-        # aggiorna modalità -- opzionale, qui forziamo solo absolute
-        # if 'F' in coords: ... puoi gestire feedrate
-        for axis in ('X', 'Y', 'Z'):
+        for letter, num in re.findall(r'([XYZF])([-+]?[0-9]*\.?[0-9]+)', m.group(2), re.IGNORECASE):
+            if letter.upper() in ('X','Y','Z'):
+                coords[letter.upper()] = float(num)
+            # Ignoriamo F qui
+
+        # Calcola deltas in mm
+        deltas = {}
+        for axis in ('X','Y','Z'):
             if axis in coords:
-                target = coords[axis]
-                if mode.lower() == 'relative':
-                    delta = target
+                tgt = coords[axis]
+                if mode=='absolute':
+                    delta = tgt - pos[axis]
+                    pos[axis] = tgt
                 else:
-                    delta = target - pos[axis]
-                pos[axis] += delta
-                # solo se c’è spostamento
-                if abs(delta) > 1e-6:
+                    delta = coords[axis]
+                    pos[axis] += delta
+                deltas[axis] = delta
+
+        if not deltas:
+            continue
+
+        # Numero di passi (interi) su ciascun asse
+        steps = {axis:int(abs(deltas[axis])*STEP_PER_MM) for axis in deltas}
+        # Massimo di passi totali → controllerà il numero di cicli
+        max_steps = max(steps.values())
+
+        # Contatori Bresenham
+        err = {axis:0 for axis in steps}
+
+        # Per ogni “tacca” del passo
+        for i in range(max_steps):
+            for axis, n_steps in steps.items():
+                # L’errore accumulato
+                err[axis] += n_steps
+                if err[axis] >= max_steps:
+                    # dobbiamo fare uno step su questo asse
+                    mapped = AXIS_MAP[axis]
+                    # direzione la impostiamo in Pico, 
+                    # quindi inviamo mm = segno * (1/STEP_PER_MM)
+                    sign = 1 if deltas[axis] >= 0 else -1
                     moves.append({
-                        "axis": axis,
-                        "mm": delta,
+                        "axis": mapped,
+                        "mm": sign * (1.0 / STEP_PER_MM),
                         "speed_pct": current_speed
                     })
+                    err[axis] -= max_steps
     return moves
+
 
 def assign_ids_to_circles(new_circles):
     """
@@ -353,12 +379,13 @@ def set_speed():
 
 @app.route('/api/jog', methods=['POST'])
 def jog():
-    if emergency_active: return jsonify(status='blocked'), 403
+    if emergency_active:
+        return jsonify(status='blocked'), 403
     data = request.json
-    ax = data['axis']
-    mapped = AXIS_MAP.get(ax.upper())
+    raw = data.get('axis','').upper()
+    mapped = AXIS_MAP.get(raw)
     if not mapped:
-        return jsonify(status='error', error=f"Axis {ax} non mappato"), 400
+        return jsonify(status='error', error=f"Axis {raw} non valido"), 400
 
     cmd = {
       "axis": mapped,
