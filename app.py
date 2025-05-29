@@ -381,19 +381,20 @@ def set_speed():
 def jog():
     if emergency_active:
         return jsonify(status='blocked'), 403
+
     data = request.json
     raw = data.get('axis','').upper()
     mapped = AXIS_MAP.get(raw)
     if not mapped:
         return jsonify(status='error', error=f"Axis {raw} non valido"), 400
 
-    cmd = {
-      "axis": mapped,
-      "mm":   data['mm'],
-      "speed_pct": current_speed
-    }
-    try_write(cmd)
+    try_write({
+        "axis": mapped,
+        "mm":   data['mm'],
+        "speed_pct": current_speed
+    })
     return jsonify(status='ok')
+
 
 @app.route('/api/homing', methods=['POST'])
 def homing():
@@ -535,19 +536,59 @@ def git_pull():
     
 @app.route('/api/gcode', methods=['POST'])
 def send_gcode():
-    """
-    Riceve un blocco di testo G-code, lo parsifica in movimenti 
-    e li manda uno a uno al Pico.
-    """
     payload = request.json or {}
     code = payload.get('code', '')
-    # Parse dei movimenti (absolute mode)
-    moves = parse_gcode_to_moves(code, mode='absolute')
-    # Invia al Pico
+
+    # parse rettilineo con DDA e mapping
+    moves = []
+    pos = {'X': 0.0, 'Y': 0.0, 'Z': 0.0}
+
+    for line in code.splitlines():
+        line = line.split(';',1)[0].strip()
+        m = re.match(r'^(G0|G1)\s*(.*)', line, re.IGNORECASE)
+        if not m:
+            continue
+
+        # estrai target
+        coords = { letter.upper(): float(val) 
+                   for letter,val in re.findall(r'([XYZ])([-+]?[0-9]*\.?[0-9]+)', m.group(2)) }
+
+        # calcola deltas e aggiorna pos
+        deltas = {}
+        for ax in ('X','Y','Z'):
+            if ax in coords:
+                tgt = coords[ax]
+                delta = tgt - pos[ax]
+                pos[ax] = tgt
+                deltas[ax] = delta
+
+        if not deltas:
+            continue
+
+        # passi interi per asse
+        steps = {ax: int(abs(deltas[ax])*STEP_PER_MM) for ax in deltas}
+        max_steps = max(steps.values())
+        err = {ax: 0 for ax in steps}
+
+        # DDA Bresenham
+        for _ in range(max_steps):
+            for ax, n in steps.items():
+                err[ax] += n
+                if err[ax] >= max_steps:
+                    sign = 1 if deltas[ax] >= 0 else -1
+                    moves.append({
+                        "axis": AXIS_MAP[ax],
+                        "mm":   sign*(1.0/STEP_PER_MM),
+                        "speed_pct": current_speed
+                    })
+                    err[ax] -= max_steps
+
+    # invia tutti i moves al Pico
     for mv in moves:
         try_write(mv)
-        time.sleep(0.02)  # piccola pausa
+        time.sleep(0.02)
     return jsonify(status='ok', sent=len(moves))
+
 
 if __name__ == '__main__':
     lcd_status("SERVER START")
