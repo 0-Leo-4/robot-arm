@@ -74,22 +74,37 @@
       <button id="btnClose" class="btn btn-secondary">Close Grip</button>
     </div>
 
-    <!-- Jog ±1mm with hold -->
-    <div class="mb-3">
-      <h5>Jog</h5>
-      <button id="jXpos" class="btn btn-outline-primary me-1" title="hold to repeat">X +1</button>
-      <button id="jYpos" class="btn btn-outline-primary me-1" title="hold to repeat">Y +1</button>
-      <button id="jZpos" class="btn btn-outline-primary me-1" title="hold to repeat">Z +1</button>
-      <button id="jXneg" class="btn btn-outline-danger ms-3" title="hold to repeat">X -1</button>
-      <button id="jYneg" class="btn btn-outline-danger me-1" title="hold to repeat">Y -1</button>
-      <button id="jZneg" class="btn btn-outline-danger" title="hold to repeat">Z -1</button>
-    </div>
-
-    <!-- Emergency & Enable Motors -->
-    <div class="mb-4">
-      <button id="btnStop" class="btn btn-danger me-2">STOP</button>
-      <button id="btnReset" class="btn btn-warning me-2">RESET</button>
-      <button id="btnEnableMotors" class="btn btn-info">Abilita Motori</button>
+    <!-- Jog, Emergency, Enable Motors, and Manual G-code Entry side by side -->
+    <div class="row mb-4">
+      <!-- Jog & Emergency Controls -->
+      <div class="col-lg-7 mb-3 mb-lg-0">
+        <h5>Jog</h5>
+        <div class="mb-2">
+          <button id="jXpos" class="btn btn-outline-primary me-1" title="hold to repeat">X +1</button>
+          <button id="jYpos" class="btn btn-outline-primary me-1" title="hold to repeat">Y +1</button>
+          <button id="jZpos" class="btn btn-outline-primary me-1" title="hold to repeat">Z +1</button>
+          <button id="jXneg" class="btn btn-outline-danger ms-3" title="hold to repeat">X -1</button>
+          <button id="jYneg" class="btn btn-outline-danger me-1" title="hold to repeat">Y -1</button>
+          <button id="jZneg" class="btn btn-outline-danger" title="hold to repeat">Z -1</button>
+        </div>
+        <div class="mb-2">
+          <button id="btnStop" class="btn btn-danger me-2">STOP</button>
+          <button id="btnReset" class="btn btn-warning me-2">RESET</button>
+          <button id="btnEnableMotors" class="btn btn-info">Abilita Motori</button>
+        </div>
+      </div>
+      <!-- Manual G-code Entry -->
+      <div class="col-lg-5">
+        <div class="card h-100">
+          <div class="card-header">Manual G-code</div>
+          <div class="card-body d-flex flex-column">
+            <textarea id="gcodeInput" rows="5" class="form-control mb-2 flex-grow-1" placeholder="E.g.
+    G0 X10 Y0 Z0
+    G1 X0 Y10 Z0"></textarea>
+            <button id="btnSendGcode" class="btn btn-outline-primary mt-2">Send G-code</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Vision Calibration -->
@@ -110,15 +125,6 @@
           <h6>Calibration Points:</h6>
           <div id="pointsList" class="mt-2"></div>
         </div>
-      </div>
-    </div>
-
-    <!-- Manual G-code Entry -->
-    <div class="card mb-4">
-      <div class="card-header">Manual G-code</div>
-      <div class="card-body">
-        <textarea id="gcodeInput" rows="5" class="form-control mb-2" placeholder="E.g.\nG0 X10 Y0 Z0\nG1 X0 Y10 Z0"></textarea>
-        <button id="btnSendGcode" class="btn btn-outline-primary">Send G-code</button>
       </div>
     </div>
 
