@@ -301,9 +301,19 @@ def capture_and_detect():
         if not ret:
             continue
 
-        # Process frame
+        # Converti in scala di grigi
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        blurred = cv2.GaussianBlur(gray, (9, 9), 2)
+
+        # Inverti l'immagine per rendere i cerchi neri "luminosi" per HoughCircles
+        inverted = cv2.bitwise_not(gray)
+
+        # Applica una soglia per evidenziare solo i neri su sfondo bianco
+        _, thresh = cv2.threshold(inverted, 200, 255, cv2.THRESH_BINARY)
+
+        # Sfocatura per ridurre il rumore
+        blurred = cv2.GaussianBlur(thresh, (9, 9), 2)
+
+        # Trova i cerchi (neri su bianco)
         circles = cv2.HoughCircles(
             blurred,
             cv2.HOUGH_GRADIENT,
@@ -315,7 +325,7 @@ def capture_and_detect():
             maxRadius=100
         )
 
-        # Always update the latest frame for streaming
+        # Aggiorna il frame per lo streaming
         ret2, jpeg = cv2.imencode('.jpg', frame)
         if ret2:
             latest_frame = jpeg.tobytes()
@@ -324,7 +334,12 @@ def capture_and_detect():
         curr = []
         if circles is not None:
             for x, y, r in circles[0]:
-                curr.append({"x": float(x), "y": float(y), "r": float(r)})
+                # Controlla che il centro sia effettivamente nero nell'immagine originale
+                cx, cy = int(round(x)), int(round(y))
+                if 0 <= cx < gray.shape[1] and 0 <= cy < gray.shape[0]:
+                    # Considera "nero" se il valore di grigio è basso
+                    if gray[cy, cx] < 60:
+                        curr.append({"x": float(x), "y": float(y), "r": float(r)})
 
         # Associa ID stabili ai cerchi
         tracked = assign_ids_to_circles(curr)
