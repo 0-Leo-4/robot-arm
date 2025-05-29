@@ -168,7 +168,12 @@
 
     // Emergency & Reset & Enable Motors
     document.getElementById('btnStop').onclick = () => {
-      axios.post('/api/stop').then(r=>{ log('STOP → '+r.data.status); setUI(false); document.getElementById('btnReset').disabled=false; });
+      axios.post('/api/stop').then(r=>{
+        log('STOP → '+r.data.status);
+        setUI(false);
+        document.getElementById('btnReset').disabled = false;
+        document.getElementById('btnGitPull').disabled = false;
+      });
     };
     document.getElementById('btnReset').onclick = () => {
       axios.post('/api/reset').then(r=>{ log('RESET → '+r.data.status); setUI(true); document.getElementById('btnEnableMotors').disabled=true; });
