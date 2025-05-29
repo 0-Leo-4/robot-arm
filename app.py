@@ -31,6 +31,8 @@ next_circle_id = 1
 tracked_circles = {}   # { id: {"x":…, "y":…, "r":…} }
 max_lost_distance = 50  # px oltre i quali consideriamo sparito
 
+AXIS_MAP = {'X': 'BASE', 'Y': 'M1', 'Z': 'M2'}
+
 # LCD HD44780 via PCF8574 su I²C bus 1
 LCD_I2C_ADDR   = 0x27   # modifica se diverso
 LCD_COLUMNS    = 16
@@ -351,14 +353,19 @@ def set_speed():
 
 @app.route('/api/jog', methods=['POST'])
 def jog():
-    if emergency_active:
-        return jsonify(status='blocked'), 403
+    if emergency_active: return jsonify(status='blocked'), 403
     data = request.json
-    try_write({
-        "axis": data['axis'],
-        "mm":   data['mm'],
-        "speed_pct": current_speed
-    })
+    ax = data['axis']
+    mapped = AXIS_MAP.get(ax.upper())
+    if not mapped:
+        return jsonify(status='error', error=f"Axis {ax} non mappato"), 400
+
+    cmd = {
+      "axis": mapped,
+      "mm":   data['mm'],
+      "speed_pct": current_speed
+    }
+    try_write(cmd)
     return jsonify(status='ok')
 
 @app.route('/api/homing', methods=['POST'])
