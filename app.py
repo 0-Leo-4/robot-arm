@@ -16,6 +16,7 @@ import smbus2
 from gpiozero import OutputDevice
 from RPLCD.i2c import CharLCD
 from scipy.optimize import linear_sum_assignment
+from sort import Sort  # Import SORT tracker
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
@@ -28,7 +29,7 @@ RELAY_GPIO = 17
 relay = OutputDevice(17, active_high=False, initial_value=True)
 detections = []
 next_circle_id = 1
-tracked_circles = {}   # { id: {"x":…, "y":…, "r":…} }
+# tracked_circles and assign_ids_to_circles are no longer used with SORT
 max_lost_distance = 50  # px oltre i quali consideriamo sparito
 
 AXIS_MAP = {'X': 'BASE', 'Y': 'M1', 'Z': 'M2'}
@@ -54,6 +55,9 @@ CALIBRATION_MATRIX = None
 CALIBRATION_POINTS = []  # [(robot_x, robot_y, img_x, img_y)]
 CALIBRATION_ACTIVE = False
 CALIBRATION_OBJECT = None
+
+# SORT tracker
+tacker = Sort(max_age=50, min_hits=1, iou_threshold=0.2)
 
 # —————————————————————
 #  INIZIALIZZA LCD via RPLCD
@@ -219,7 +223,7 @@ def parse_gcode_to_moves(code_block, mode='absolute'):
 
         # Numero di passi (interi) su ciascun asse
         steps = {axis:int(abs(deltas[axis])*STEP_PER_MM) for axis in deltas}
-        # Massimo di passi totali → controllerà il numero di cicli
+        # Massimo di passi totali -> controllerà il numero di cicli
         max_steps = max(steps.values())
 
         # Contatori Bresenham
@@ -244,68 +248,15 @@ def parse_gcode_to_moves(code_block, mode='absolute'):
                     err[axis] -= max_steps
     return moves
 
-def assign_ids_to_circles(new_circles):
-    """
-    new_circles: list di dict {"x":float, "y":float, "r":float}
-    Restituisce lista di dict {"id":int, "x":…, "y":…, "r":…}
-    """
-    global tracked_circles, next_circle_id
-
-    # Se non ci sono precedenti, assegna ID incrementali
-    if not tracked_circles:
-        results = []
-        for nc in new_circles:
-            cid = next_circle_id
-            next_circle_id += 1
-            tracked_circles[cid] = nc.copy()
-            results.append({"id": cid, **nc})
-        return results
-
-    # Costruisci matrici per il cost matrix
-    old_ids = list(tracked_circles.keys())
-    old_pts = [tracked_circles[cid] for cid in old_ids]
-    new_pts = new_circles
-
-    cost = np.zeros((len(old_pts), len(new_pts)), dtype=float)
-    for i, op in enumerate(old_pts):
-        for j, np_ in enumerate(new_pts):
-            cost[i, j] = math.hypot(op["x"] - np_["x"], op["y"] - np_["y"])
-
-    # Hungarian assignment
-    row_idx, col_idx = linear_sum_assignment(cost)
-
-    assigned = {}
-    results = []
-
-    # Match existing
-    for i, j in zip(row_idx, col_idx):
-        if cost[i, j] < max_lost_distance:
-            cid = old_ids[i]
-            nc = new_pts[j]
-            tracked_circles[cid] = nc.copy()
-            assigned[j] = cid
-            results.append({"id": cid, **nc})
-
-    # New detections senza match → nuovi ID
-    for j, nc in enumerate(new_pts):
-        if j not in assigned:
-            cid = next_circle_id
-            next_circle_id += 1
-            tracked_circles[cid] = nc.copy()
-            results.append({"id": cid, **nc})
-
-    # Rimuove i perduti: quelli vecchi non matchati
-    kept_ids = {obj["id"] for obj in results}
-    tracked_circles = {cid: tracked_circles[cid] for cid in kept_ids}
-
-    return results
-
+# —————————————————————
+#  VISION + SORT INTEGRATION
+# —————————————————————
 def capture_and_detect():
-    global detections, fps, latest_frame, CALIBRATION_OBJECT
+    global detections, fps, latest_frame, CALIBRATION_OBJECT, tracker
     cap = cv2.VideoCapture(0)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-    
+    # Nascondi SORT tracker inizializzato globalmente
     while True:
         t0 = time.time()
         ret, frame = cap.read()
@@ -315,8 +266,7 @@ def capture_and_detect():
         # Converti in scala di grigi
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        # Applica una soglia per ottenere solo i pixel neri (valori bassi)
-        # Soglia bassa: tutto ciò che è "abbastanza nero" diventa bianco (255), il resto nero (0)
+        # Applica soglia per ottenere solo i pixel neri
         _, mask = cv2.threshold(gray, 60, 255, cv2.THRESH_BINARY_INV)
 
         # Sfocatura per ridurre il rumore
@@ -334,30 +284,60 @@ def capture_and_detect():
             maxRadius=100
         )
 
-        # Aggiorna il frame per lo streaming
-        ret2, jpeg = cv2.imencode('.jpg', frame)
-        if ret2:
-            latest_frame = jpeg.tobytes()
-
-        # Raccogli le nuove rilevazioni
         curr = []
         if circles is not None:
             circles = np.uint16(np.around(circles))
             for circle in circles[0, :]:
                 x, y, r = circle
-                # Controlla che il centro sia effettivamente nero nell'immagine originale
                 if 0 <= y < gray.shape[0] and 0 <= x < gray.shape[1]:
-                    # Considera "nero" se il valore di grigio è basso
                     if gray[y, x] < 60:
                         curr.append({"x": float(x), "y": float(y), "r": float(r)})
 
-        # Associa ID stabili ai cerchi
-        tracked = assign_ids_to_circles(curr)
+        # Conversione detection in bounding-box per SORT
+        dets = []
+        for c in curr:
+            x, y, r = c["x"], c["y"], c["r"]
+            x1 = max(0, x - r)
+            y1 = max(0, y - r)
+            x2 = min(frame.shape[1], x + r)
+            y2 = min(frame.shape[0], y + r)
+            dets.append([x1, y1, x2, y2, 1.0])  # score fittizio = 1.0
+
+        dets_np = np.array(dets) if len(dets) > 0 else np.empty((0, 5))
+
+        # Aggiorna il tracker SORT: ritorna array Mx5 [x1, y1, x2, y2, track_id]
+        tracked_objects = tracker.update(dets_np)
+
+        # Ricostruzione lista di cerchi con ID da tracked_objects
+        tracked = []
+        display_frame = frame.copy()
+        for t in tracked_objects:
+            x1, y1, x2, y2, tid = t
+            xc = (x1 + x2) / 2.0
+            yc = (y1 + y2) / 2.0
+            rr = max((x2 - x1), (y2 - y1)) / 2.0
+            tracked.append({"id": int(tid), "x": float(xc), "y": float(yc), "r": float(rr)})
+            # Disegna cerchi e ID sul frame
+            cv2.circle(display_frame, (int(xc), int(yc)), int(rr), (0, 255, 0), 2)
+            cv2.putText(
+                display_frame,
+                str(int(tid)),
+                (int(xc) - 10, int(yc) - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (0, 0, 255),
+                2
+            )
 
         # Calcola il delta time e aggiorna fps
         dt = time.time() - t0
         if dt > 0:
             fps = round(1.0 / dt, 1)
+
+        # Aggiorna il frame per lo streaming
+        ret2, jpeg = cv2.imencode('.jpg', display_frame)
+        if ret2:
+            latest_frame = jpeg.tobytes()
 
         # Aggiorna le detections in modo thread-safe
         with lock:
