@@ -7,16 +7,14 @@ import json
 import sys
 import os
 import re
-import base64
 import math
 import cv2
 import numpy as np
 from flask import Flask, request, jsonify, render_template, Response
-import smbus2
 from gpiozero import OutputDevice
 from RPLCD.i2c import CharLCD
 from scipy.optimize import linear_sum_assignment
-from sort import Sort  # Import SORT tracker
+from sort.sort import Sort  # Fixed import for SORT tracker
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
@@ -26,10 +24,9 @@ app = Flask(__name__, template_folder='templates', static_folder='static')
 SERIAL_PORT    = '/dev/ttyACM0'
 BAUDRATE       = 115200
 RELAY_GPIO = 17
-relay = OutputDevice(17, active_high=False, initial_value=True)
+relay = OutputDevice(RELAY_GPIO, active_high=False, initial_value=False)  # Fixed GPIO initialization
 detections = []
 next_circle_id = 1
-# tracked_circles and assign_ids_to_circles are no longer used with SORT
 max_lost_distance = 50  # px oltre i quali consideriamo sparito
 
 AXIS_MAP = {'X': 'BASE', 'Y': 'M1', 'Z': 'M2'}
@@ -57,7 +54,7 @@ CALIBRATION_ACTIVE = False
 CALIBRATION_OBJECT = None
 
 # SORT tracker
-tacker = Sort(max_age=50, min_hits=1, iou_threshold=0.2)
+tracker = Sort(max_age=50, min_hits=1, iou_threshold=0.2)  # Fixed variable name
 
 # —————————————————————
 #  INIZIALIZZA LCD via RPLCD
@@ -256,7 +253,7 @@ def capture_and_detect():
     cap = cv2.VideoCapture(0)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-    # Nascondi SORT tracker inizializzato globalmente
+    
     while True:
         t0 = time.time()
         ret, frame = cap.read()
@@ -337,7 +334,8 @@ def capture_and_detect():
         # Aggiorna il frame per lo streaming
         ret2, jpeg = cv2.imencode('.jpg', display_frame)
         if ret2:
-            latest_frame = jpeg.tobytes()
+            with lock:
+                latest_frame = jpeg.tobytes()
 
         # Aggiorna le detections in modo thread-safe
         with lock:
@@ -367,23 +365,30 @@ def video_page():
 def video_feed():
     def generate():
         while True:
-            if latest_frame:
+            frame = None
+            with lock:
+                if latest_frame:
+                    frame = latest_frame
+            if frame:
                 yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + latest_frame + b'\r\n')
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
             time.sleep(0.033)  # ~30 FPS
     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/api/detections')
 def api_detections():
     with lock:
-        return jsonify({'frame_url':'/api/frame', 'fps':fps, 'detections':detections})
+        return jsonify({'fps':fps, 'detections':detections})
 
 @app.route('/api/frame')
 def frame():
-    global latest_frame
-    if not latest_frame:
+    frame = None
+    with lock:
+        if latest_frame:
+            frame = latest_frame
+    if not frame:
         return Response(status=204)
-    return Response(latest_frame, mimetype='image/jpeg')
+    return Response(frame, mimetype='image/jpeg')
 
 @app.route('/api/pico_status', methods=['GET'])
 def pico_status():
