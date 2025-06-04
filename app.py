@@ -14,7 +14,7 @@ from flask import Flask, request, jsonify, render_template, Response
 from gpiozero import OutputDevice
 from RPLCD.i2c import CharLCD
 from scipy.optimize import linear_sum_assignment
-from sort.sort import Sort  # Fixed import for SORT tracker
+from sort import Sort  # Fixed import for SORT tracker
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
