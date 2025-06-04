@@ -24,7 +24,7 @@ app = Flask(__name__, template_folder='templates', static_folder='static')
 SERIAL_PORT    = '/dev/ttyACM0'
 BAUDRATE       = 115200
 RELAY_GPIO = 17
-relay = OutputDevice(RELAY_GPIO, active_high=False, initial_value=False)  # Fixed GPIO initialization
+relay = OutputDevice(RELAY_GPIO, active_high=False, initial_value=True)
 detections = []
 next_circle_id = 1
 max_lost_distance = 50  # px oltre i quali consideriamo sparito
