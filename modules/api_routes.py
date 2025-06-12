@@ -1,5 +1,5 @@
 # modules/api_routes.py
-from flask import Blueprint, request, jsonify, render_template, Response
+from flask import Blueprint, request, jsonify, render_template, Response, Flask
 import subprocess
 import time
 import os
@@ -10,7 +10,7 @@ from . import serial_comms, lcd, motion_control
 from .shared_state import state
 
 # Blueprint per le route API
-bp = Blueprint('api', __name__, url_prefix='/api')
+bp = Blueprint('api', __name__, template_folder='templates', static_folder='static')
 
 # Variabile per il relè (inizializzata in app.py)
 RELAY_GPIO = 17
