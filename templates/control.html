@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="it">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -27,6 +27,25 @@
     .card-header { background-color: #23272b !important; border-bottom: 1px solid #343a40 !important; }
     .log-area { border-radius: 4px; }
     .status-badge { min-width: 120px; }
+    
+    /* Aggiunte */
+    .position-display {
+      background: #2c3034;
+      padding: 10px;
+      border-radius: 5px;
+      font-family: monospace;
+    }
+    .calibration-section {
+      background: #1e2226;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 20px;
+    }
+    .grip-control {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
   </style>
 </head>
 <body class="bg-dark">
@@ -51,6 +70,15 @@
       <div>
         <button id="btnGitPull" class="btn btn-info">Pull Updates</button>
       </div>
+      
+      <!-- Nuova sezione posizione -->
+      <div class="mt-3">
+        <h5>Posizione Corrente</h5>
+        <div id="currentPosition" class="position-display">
+          X: --, Y: --, Z: --
+        </div>
+        <button id="btnGetPosition" class="btn btn-info mt-2">Aggiorna Posizione</button>
+      </div>
       </div>
     </div>
 
@@ -66,8 +94,27 @@
     <!-- Homing & Grip -->
     <div class="mb-3">
       <button id="btnHoming" class="btn btn-warning me-2">Homing</button>
-      <button id="btnOpen" class="btn btn-secondary me-1">Open Grip</button>
-      <button id="btnClose" class="btn btn-secondary">Close Grip</button>
+      
+      <!-- Controllo gripper migliorato -->
+      <div class="grip-control">
+        <button id="btnOpen" class="btn btn-secondary me-1">Open Grip</button>
+        <button id="btnClose" class="btn btn-secondary me-2">Close Grip</button>
+        <input type="range" id="gripRange" min="0" max="90" step="1" value="0" class="form-range" style="width: 120px;">
+        <span id="gripVal" class="ms-2">0°</span>
+      </div>
+    </div>
+
+    <!-- Nuova sezione calibrazione -->
+    <div class="calibration-section mb-4">
+      <h5>Calibrazione Visione</h5>
+      <div class="d-flex flex-wrap gap-2 mb-2">
+        <button id="btnStartCalib" class="btn btn-info">Inizia Calibrazione</button>
+        <button id="btnAddPoint" class="btn btn-info" disabled>Aggiungi Punto</button>
+        <button id="btnCalcCalib" class="btn btn-info" disabled>Calcola</button>
+      </div>
+      <div id="calibStatus" class="mt-2">
+        Stato: Non calibrato
+      </div>
     </div>
 
     <!-- Jog, Emergency, Enable Motors, and Manual G-code Entry side by side -->
@@ -98,6 +145,15 @@
     G0 X10 Y0 Z0
     G1 X0 Y10 Z0"></textarea>
             <button id="btnSendGcode" class="btn btn-outline-primary mt-2">Send G-code</button>
+            
+            <!-- Nuovo: movimento a oggetto -->
+            <div class="mt-3">
+              <label>Muovi a Oggetto:</label>
+              <div class="input-group">
+                <input type="number" id="objectId" class="form-control" placeholder="ID Oggetto" min="1">
+                <button id="btnMoveToObject" class="btn btn-info">Vai</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -208,9 +264,61 @@
         .then(r=>log(`Movimenti inviati: ${r.data.sent}`))
         .catch(e => log(`G-code error: ${e}`));
     };
-
-    // initialize UI
+    
+    // Nuove funzionalità
+    
+    // Aggiornamento posizione corrente
+    function updatePosition() {
+      axios.get('/api/get_current_position')
+        .then(response => {
+          if (response.data.status === 'ok') {
+            const pos = response.data.position;
+            document.getElementById('currentPosition').innerHTML = 
+              `X: ${pos.x.toFixed(2)}, Y: ${pos.y.toFixed(2)}, Z: ${pos.z.toFixed(2)}`;
+          }
+        })
+        .catch(error => {
+          log('Errore lettura posizione: ' + error.message);
+        });
+    }
+    
+    // Controllo avanzato del gripper
+    document.getElementById('gripRange').addEventListener('input', function() {
+      const angle = this.value;
+      document.getElementById('gripVal').textContent = angle + '°';
+    });
+    
+    document.getElementById('gripRange').addEventListener('change', function() {
+      const angle = parseInt(this.value);
+      axios.post('/api/upload', {commands: [{cmd: 'grip', angle}]})
+        .then(() => axios.post('/api/run_queue'))
+        .then(() => log(`Gripper impostato a ${angle}°`));
+    });
+    
+    // Movimento a oggetto
+    document.getElementById('btnMoveToObject').onclick = () => {
+      const objectId = document.getElementById('objectId').value;
+      if (!objectId) {
+        log('Inserire un ID oggetto valido');
+        return;
+      }
+      
+      axios.post('/api/move_to_object', {object_id: parseInt(objectId)})
+        .then(r => {
+          if (r.data.status === 'pick_queued') {
+            log(`Movimento a oggetto ${objectId} in coda (${r.data.moves} movimenti)`);
+          }
+        })
+        .catch(e => log(`Errore movimento: ${e.response?.data?.error || e.message}`));
+    };
+    
+    // Inizializzazioni aggiuntive
+    document.getElementById('btnGetPosition').onclick = updatePosition;
+    setInterval(updatePosition, 10000);  // Aggiorna posizione ogni 10s
+    
+    // Inizializza UI
     setUI(true);
+    updatePosition();  // Prima lettura posizione
   </script>
 </body>
 </html>
