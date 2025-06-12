@@ -14,7 +14,6 @@
       color: #f8f9fa !important;
       border-color: #343a40 !important;
     }
-    /* Button styles */
     .btn-info { background-color: rgb(26,104,119) !important; border-color: #0dcaf0 !important; }
     .btn-warning { background-color: #ffc107 !important; border-color: #ffc107 !important; color: #181a1b !important; }
     .btn-secondary { background-color: #6c757d !important; border-color: #6c757d !important; }
@@ -27,8 +26,6 @@
     label, h1, h5, .card-header { color: #f8f9fa !important; }
     .card-header { background-color: #23272b !important; border-bottom: 1px solid #343a40 !important; }
     .log-area { border-radius: 4px; }
-    .calib-point { display: flex; gap: 10px; margin-bottom: 8px; }
-    .calib-input { flex: 1; }
     .status-badge { min-width: 120px; }
   </style>
 </head>
@@ -37,7 +34,6 @@
     <h1 class="mb-2">
       Robot Control 
       <span id="picoStatus" class="badge bg-success ms-2 status-badge">Pico: Connesso</span>
-      <span id="calibGlobalStatus" class="badge bg-secondary ms-2 status-badge">Calib: Non calibrata</span>
     </h1>
 
     <!-- Settings -->
@@ -107,27 +103,6 @@
       </div>
     </div>
 
-    <!-- Vision Calibration -->
-    <div class="card mb-4">
-      <div class="card-header">Vision Calibration</div>
-      <div class="card-body">
-        <div class="mb-3">
-          <button id="btnStartCalib" class="btn btn-info mb-2">Start Calibration</button>
-          <button id="btnAddCalibPoint" class="btn btn-info mb-2">Add Calibration Point</button>
-          <button id="btnCalcCalib" class="btn btn-info mb-2">Calculate Calibration</button>
-          <div class="mt-2">
-            <label>Calibration Status: <span id="calibStatus">Not calibrated</span></label>
-            <span id="calibPoints" class="badge bg-secondary ms-2">0 points</span>
-          </div>
-        </div>
-        
-        <div id="calibPointsContainer" class="d-none mt-3">
-          <h6>Calibration Points:</h6>
-          <div id="pointsList" class="mt-2"></div>
-        </div>
-      </div>
-    </div>
-
     <!-- Log -->
     <div class="card">
       <div class="card-body p-2">
@@ -148,7 +123,6 @@
 
     // Pico status badge
     const statusEl = document.getElementById('picoStatus');
-    const calibGlobalStatus = document.getElementById('calibGlobalStatus');
     function updatePicoStatus(){
       axios.get('/api/pico_status')
         .then(r => {
@@ -162,20 +136,8 @@
         });
     }
     
-    // Update calibration status globally
-    function updateCalibGlobalStatus() {
-      axios.get('/api/get_calibration_status')
-        .then(r => {
-          const calibrated = r.data.calibrated;
-          calibGlobalStatus.textContent = calibrated ? 'Calib: Completata' : 'Calib: Non calibrata';
-          calibGlobalStatus.className = calibrated ? 'badge bg-success ms-2 status-badge' : 'badge bg-secondary ms-2 status-badge';
-        });
-    }
-    
     updatePicoStatus();
-    updateCalibGlobalStatus();
     setInterval(updatePicoStatus, 5000);
-    setInterval(updateCalibGlobalStatus, 3000);
 
     // Speed control
     const spR = document.getElementById('speedRange'), spV = document.getElementById('speedVal');
@@ -247,140 +209,8 @@
         .catch(e => log(`G-code error: ${e}`));
     };
 
-    // Vision Calibration
-    let calibPoints = [];
-    const calibStatus = document.getElementById('calibStatus');
-    const calibPointsBadge = document.getElementById('calibPoints');
-    const pointsList = document.getElementById('pointsList');
-    const calibContainer = document.getElementById('calibPointsContainer');
-    
-    // Start new calibration
-    document.getElementById('btnStartCalib').onclick = () => {
-      axios.post('/api/start_calibration')
-        .then(r => {
-          calibPoints = [];
-          updateCalibUI();
-          calibStatus.textContent = 'Attivo - posiziona il robot';
-          log('Calibrazione avviata: ' + r.data.message);
-          updateCalibGlobalStatus();
-        })
-        .catch(err => log('Errore avvio calibrazione: ' + err.message));
-    };
-    
-    // Add calibration point
-    document.getElementById('btnAddCalibPoint').onclick = () => {
-      // 1. Ottieni posizione corrente del robot
-      axios.get('/api/get_current_position')
-        .then(posRes => {
-          if(posRes.data.status !== 'ok') throw new Error('Posizione robot non disponibile');
-          
-          // 2. Ottieni rilevazioni dalla camera
-          axios.get('/api/detections')
-            .then(detRes => {
-              const detections = detRes.data.detections;
-              if(!detections || detections.length === 0) throw new Error('Nessun oggetto rilevato');
-              
-              // 3. Trova l'oggetto più vicino al centro
-              const centerX = 320; // Centro orizzontale per 640px
-              const centerY = 240; // Centro verticale per 480px
-              
-              let closest = null;
-              let minDistance = Infinity;
-              
-              for(const obj of detections) {
-                const dist = Math.sqrt(
-                  Math.pow(obj.x - centerX, 2) + 
-                  Math.pow(obj.y - centerY, 2)
-                );
-                
-                if(dist < minDistance) {
-                  minDistance = dist;
-                  closest = obj;
-                }
-              }
-              
-              if(!closest) throw new Error('Nessun oggetto valido trovato');
-              
-              // 4. Invia punto al backend
-              axios.post('/api/add_calibration_point', {
-                img_x: closest.x,
-                img_y: closest.y,
-                robot_x: posRes.data.position.BASE,
-                robot_y: posRes.data.position.M1
-              })
-              .then(r => {
-                // Aggiorna UI con nuovo punto
-                calibPoints.push({
-                  imgX: r.data.img_x,
-                  imgY: r.data.img_y,
-                  robotX: r.data.robot_x,
-                  robotY: r.data.robot_y
-                });
-                
-                updateCalibUI();
-                log(`Punto calibrazione aggiunto: Img(${r.data.img_x},${r.data.img_y}) → Robot(${r.data.robot_x},${r.data.robot_y})`);
-                calibPointsBadge.textContent = `${calibPoints.length} punti`;
-                calibStatus.textContent = `Punti: ${calibPoints.length}`;
-              })
-              .catch(err => log('Errore aggiunta punto: ' + err.message));
-            })
-            .catch(err => log('Errore rilevazioni: ' + err.message));
-        })
-        .catch(err => log('Errore posizione: ' + err.message));
-    };
-    
-    // Calculate calibration matrix
-    document.getElementById('btnCalcCalib').onclick = () => {
-      if(calibPoints.length < 3) {
-        log('Errore: Almeno 3 punti richiesti per la calibrazione');
-        return;
-      }
-      
-      axios.post('/api/calculate_calibration')
-        .then(response => {
-          if(response.data.status === 'calibration_complete') {
-            calibStatus.textContent = 'Calibrato!';
-            log('Calibrazione completata con successo!');
-            log('Matrice: ' + JSON.stringify(response.data.matrix));
-            updateCalibGlobalStatus();
-          } else {
-            log('Errore calibrazione: ' + response.data.error);
-          }
-        })
-        .catch(error => {
-          log('Errore calcolo calibrazione: ' + error.message);
-        });
-    };
-    
-    // Update calibration UI
-    function updateCalibUI() {
-      calibPointsBadge.textContent = `${calibPoints.length} punti`;
-      
-      if(calibPoints.length > 0) {
-        calibContainer.classList.remove('d-none');
-        pointsList.innerHTML = '';
-        
-        calibPoints.forEach((point, index) => {
-          const pointEl = document.createElement('div');
-          pointEl.className = 'calib-point mb-2';
-          pointEl.innerHTML = `
-            <span class="badge bg-info align-self-center">${index + 1}</span>
-            <input type="text" class="form-control calib-input" 
-                   value="Immagine: (${point.imgX.toFixed(1)}, ${point.imgY.toFixed(1)})" readonly>
-            <span class="align-self-center">→</span>
-            <input type="text" class="form-control calib-input" 
-                   value="Robot: (${point.robotX.toFixed(1)}, ${point.robotY.toFixed(1)})" readonly>
-          `;
-          pointsList.appendChild(pointEl);
-        });
-      } else {
-        calibContainer.classList.add('d-none');
-      }
-    }
-
     // initialize UI
     setUI(true);
-    updateCalibUI();
   </script>
 </body>
 </html>
