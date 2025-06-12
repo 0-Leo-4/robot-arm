@@ -1,7 +1,6 @@
 # modules/serial_comms.py
 import serial
 import time
-import threading
 import json
 from .shared_state import state
 

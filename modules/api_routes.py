@@ -5,9 +5,8 @@ import time
 import os
 import json
 import threading
-import cv2
 import numpy as np
-from . import serial_comms, vision, lcd, motion_control, calibration
+from . import serial_comms, lcd, motion_control
 from .shared_state import state
 
 # Blueprint per le route API
@@ -239,45 +238,45 @@ def get_current_position():
     return jsonify(status='error', error="Position not available"), 500
 
 
-@bp.route('/move_to_object', methods=['POST'])
-def move_to_object():
-    """Muovi il robot verso un oggetto rilevato"""
-    if state.emergency_active:
-        return jsonify(status='blocked'), 403
+# @bp.route('/move_to_object', methods=['POST'])
+# def move_to_object():
+#     """Muovi il robot verso un oggetto rilevato"""
+#     if state.emergency_active:
+#         return jsonify(status='blocked'), 403
     
-    data = request.json
-    obj_id = data.get('object_id')
+#     data = request.json
+#     obj_id = data.get('object_id')
     
-    # Trova l'oggetto nelle rilevazioni correnti
-    with state.lock:
-        obj = next((d for d in state.detections if d['id'] == obj_id), None)
+#     # Trova l'oggetto nelle rilevazioni correnti
+#     with state.lock:
+#         obj = next((d for d in state.detections if d['id'] == obj_id), None)
     
-    if not obj:
-        return jsonify(status='error', error='Oggetto non trovato'), 404
+#     if not obj:
+#         return jsonify(status='error', error='Oggetto non trovato'), 404
     
-    try:
-        # Converti coordinate visione → robot
-        robot_x, robot_y = calibration.vision_to_robot_coordinates(obj['x'], obj['y'])
+#     try:
+#         # Converti coordinate visione → robot
+#         robot_x, robot_y = calibration.vision_to_robot_coordinates(obj['x'], obj['y'])
         
-        # Altezza di sicurezza (da configurare)
-        safe_z = 50.0  
+#         # Altezza di sicurezza (da configurare)
+#         safe_z = 50.0  
         
-        # Altezza di pick (da configurare)
-        pick_z = 10.0   
+#         # Altezza di pick (da configurare)
+#         pick_z = 10.0   
         
-        # Sequenza di movimenti
-        move_sequence = [
-            {"axis": "BASE", "mm": robot_x, "speed_pct": 70},
-            {"axis": "M1", "mm": robot_y, "speed_pct": 70},
-            {"axis": "M2", "mm": safe_z, "speed_pct": 50},
-            {"axis": "M2", "mm": pick_z, "speed_pct": 30},
-            {"cmd": "grip", "angle": 80},  # Angolo chiusura
-            {"axis": "M2", "mm": safe_z, "speed_pct": 50}
-        ]
+#         # Sequenza di movimenti
+#         move_sequence = [
+#             {"axis": "BASE", "mm": robot_x, "speed_pct": 70},
+#             {"axis": "M1", "mm": robot_y, "speed_pct": 70},
+#             {"axis": "M2", "mm": safe_z, "speed_pct": 50},
+#             {"axis": "M2", "mm": pick_z, "speed_pct": 30},
+#             {"cmd": "grip", "angle": 80},  # Angolo chiusura
+#             {"axis": "M2", "mm": safe_z, "speed_pct": 50}
+#         ]
         
-        # Aggiungi alla coda di comandi
-        state.command_queue.extend(move_sequence)
-        return jsonify(status='pick_queued', moves=len(move_sequence))
+#         # Aggiungi alla coda di comandi
+#         state.command_queue.extend(move_sequence)
+#         return jsonify(status='pick_queued', moves=len(move_sequence))
     
-    except Exception as e:
-        return jsonify(status='error', error=str(e)), 500
+#     except Exception as e:
+#         return jsonify(status='error', error=str(e)), 500
