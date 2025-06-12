@@ -2,8 +2,11 @@
 import threading
 from flask import Flask
 from modules import serial_comms, vision, lcd, motion_control, api_routes
+import sys
+import os
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
+sys.path.append(os.path.join(os.path.dirname(__file__), 'modules'))
 
 # Inizializza tutti i moduli
 def initialize_modules():
