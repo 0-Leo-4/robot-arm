@@ -1,4 +1,7 @@
 import threading
+from gpiozero import OutputDevice
+
+relay = OutputDevice(17, active_high=False, initial_value=True)
 
 class SharedState:
     def __init__(self):
