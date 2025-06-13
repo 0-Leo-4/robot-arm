@@ -22,7 +22,7 @@ def index():
 @bp.route('/video')
 def video_page():
     return render_template('video.html',
-        conveyor_speed='120', resolution='1280x720',
+        conveyor_speed=str(state.conveyor_speed), resolution='1280x720',
         fps=f"{state.fps}", detection_interval='100 ms'
     )
     

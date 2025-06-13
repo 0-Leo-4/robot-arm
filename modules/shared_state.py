@@ -20,5 +20,6 @@ class SharedState:
         self.command_queue = []
         self.relay = OutputDevice(17, active_high=False, initial_value=True)
         self.pico = None
+        self.conveyor_speed = 0
 
 state = SharedState()
