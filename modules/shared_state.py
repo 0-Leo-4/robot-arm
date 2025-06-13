@@ -21,5 +21,8 @@ class SharedState:
         self.relay = OutputDevice(17, active_high=False, initial_value=True)
         self.pico = None
         self.conveyor_speed = 0
+        self.X = 0
+        self.Y = 0
+        self.Z = 0
 
 state = SharedState()
