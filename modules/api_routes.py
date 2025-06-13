@@ -33,7 +33,7 @@ def video_feed():
             if state.latest_frame:
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + state.latest_frame + b'\r\n')
-            time.sleep(0.033)  # ~30 FPS
+            time.sleep(0.016)  # ~60 FPS
     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @bp.route('/manual_gcode')
