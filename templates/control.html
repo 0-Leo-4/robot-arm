@@ -45,124 +45,89 @@
       display: flex;
       align-items: center;
       gap: 10px;
-    }
-  </style>
-</head>
-<body class="bg-dark">
-  <div class="container py-4">
-    <h1 class="mb-2">
-      Robot Control 
-      <span id="picoStatus" class="badge bg-success ms-2 status-badge">Pico: Connesso</span>
-    </h1>
 
-    <!-- Settings -->
-    <div class="card mb-4 bg-dark text-light">
-      <div class="card-header">Settings</div>
-      <div class="card-body">
-      <div class="mb-2">
-        <button id="btnRebootPi"   class="btn btn-info me-2 mb-2">Reboot Pi5</button>
-        <button id="btnRebootPico" class="btn btn-info mb-2">Reboot Pico</button>
-      </div>
-      <div class="mb-2">
-        <button id="btnDiscPico"   class="btn btn-secondary me-2 mb-2">Disconnect Pico</button>
-        <button id="btnConnPico"   class="btn btn-secondary mb-2">Reconnect Pico</button>
-      </div>
-      <div>
-        <button id="btnGitPull" class="btn btn-info">Pull Updates</button>
-      </div>
-      
-      <!-- Nuova sezione posizione -->
-      <div class="mt-3">
-        <h5>Posizione Corrente</h5>
-        <div id="currentPosition" class="position-display">
-          X: --, Y: --, Z: --
-        </div>
-        <button id="btnGetPosition" class="btn btn-info mt-2">Aggiorna Posizione</button>
-      </div>
-      </div>
-    </div>
+      </style>
+    </head>
+    <body class="bg-dark">
+      <div class="container py-4">
+        <h1 class="mb-2">
+          Robot Control 
+          <span id="picoStatus" class="badge bg-success ms-2 status-badge">Pico: Connesso</span>
+        </h1>
 
-    <!-- Speed Slider & Video Button -->
-    <div class="mb-3 d-flex align-items-center">
-      <div class="flex-grow-1">
-        <label>Speed: <span id="speedVal">100%</span></label>
-        <input type="range" id="speedRange" min="5" max="100" step="1" value="100" class="form-range">
-      </div>
-      <a href="/video" target="_blank" class="btn btn-info ms-3">Video</a>
-    </div>
-
-    <!-- Homing & Grip -->
-    <div class="mb-3">
-      <button id="btnHoming" class="btn btn-warning me-2">Homing</button>
-      
-      <!-- Controllo gripper migliorato -->
-      <div class="grip-control">
-        <button id="btnOpen" class="btn btn-secondary me-1">Open Grip</button>
-        <button id="btnClose" class="btn btn-secondary me-2">Close Grip</button>
-        <input type="range" id="gripRange" min="0" max="90" step="1" value="0" class="form-range" style="width: 120px;">
-        <span id="gripVal" class="ms-2">0°</span>
-      </div>
-    </div>
-
-    <!-- Nuova sezione calibrazione -->
-    <div class="calibration-section mb-4">
-      <h5>Calibrazione Visione</h5>
-      <div class="d-flex flex-wrap gap-2 mb-2">
-        <button id="btnStartCalib" class="btn btn-info">Inizia Calibrazione</button>
-        <button id="btnAddPoint" class="btn btn-info" disabled>Aggiungi Punto</button>
-        <button id="btnCalcCalib" class="btn btn-info" disabled>Calcola</button>
-      </div>
-      <div id="calibStatus" class="mt-2">
-        Stato: Non calibrato
-      </div>
-    </div>
-
-    <!-- Jog, Emergency, Enable Motors, and Manual G-code Entry side by side -->
-    <div class="row mb-4">
-      <!-- Jog & Emergency Controls -->
-      <div class="col-lg-7 mb-3 mb-lg-0">
-        <h5>Jog</h5>
-        <div class="mb-2">
-          <button id="jXpos" class="btn btn-outline-primary me-1" title="hold to repeat">X +1</button>
-          <button id="jYpos" class="btn btn-outline-primary me-1" title="hold to repeat">Y +1</button>
-          <button id="jZpos" class="btn btn-outline-primary me-1" title="hold to repeat">Z +1</button>
-          <button id="jXneg" class="btn btn-outline-danger ms-3" title="hold to repeat">X -1</button>
-          <button id="jYneg" class="btn btn-outline-danger me-1" title="hold to repeat">Y -1</button>
-          <button id="jZneg" class="btn btn-outline-danger" title="hold to repeat">Z -1</button>
-        </div>
-        <div class="mb-2">
-          <button id="btnStop" class="btn btn-danger me-2">STOP</button>
-          <button id="btnReset" class="btn btn-warning me-2">RESET</button>
-          <button id="btnEnableMotors" class="btn btn-info">Abilita Motori</button>
-        </div>
-      </div>
-      <!-- Manual G-code Entry -->
-      <div class="col-lg-5">
-        <div class="card h-100">
-          <div class="card-header">Manual G-code</div>
-          <div class="card-body d-flex flex-column">
-            <textarea id="gcodeInput" rows="5" class="form-control mb-2 flex-grow-1" placeholder="E.g.
-    G0 X10 Y0 Z0
-    G1 X0 Y10 Z0"></textarea>
-            <button id="btnSendGcode" class="btn btn-outline-primary mt-2">Send G-code</button>
-            
-            <!-- Nuovo: movimento a oggetto -->
-            <div class="mt-3">
-              <label>Muovi a Oggetto:</label>
-              <div class="input-group">
-                <input type="number" id="objectId" class="form-control" placeholder="ID Oggetto" min="1">
-                <button id="btnMoveToObject" class="btn btn-info">Vai</button>
+        <!-- Settings -->
+        <div class="row mb-4">
+          <!-- Settings -->
+          <div class="col-lg-7 mb-3 mb-lg-0">
+            <div class="card bg-dark text-light h-100">
+              <div class="card-header">Settings</div>
+              <div class="card-body">
+                <div class="mb-2">
+                  <button id="btnRebootPi"   class="btn btn-info me-2 mb-2">Reboot Pi5</button>
+                  <button id="btnRebootPico" class="btn btn-info mb-2">Reboot Pico</button>
+                </div>
+                <div class="mb-2">
+                  <button id="btnDiscPico"   class="btn btn-secondary me-2 mb-2">Disconnect Pico</button>
+                  <button id="btnConnPico"   class="btn btn-secondary mb-2">Reconnect Pico</button>
+                </div>
+                <div>
+                  <button id="btnGitPull" class="btn btn-info">Pull Updates</button>
+                </div>
               </div>
             </div>
+          </div>
+          <!-- Posizione in tempo reale -->
+          <div class="col-lg-5">
+            <div class="card h-100 bg-dark text-light">
+              <div class="card-header">Posizione Corrente</div>
+              <div class="card-body d-flex align-items-center justify-content-center">
+                <div id="currentPosition" class="position-display w-100 text-center">
+                  X: --, Y: --, Z: --
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Speed Slider & Video/G-code Buttons -->
+        <div class="row mb-3">
+          <div class="col-lg-7 mb-2 mb-lg-0">
+            <div class="d-flex align-items-center h-100">
+              <div class="flex-grow-1">
+                <label>Speed: <span id="speedVal">100%</span></label>
+                <input type="range" id="speedRange" min="1" max="100" step="1" value="100" class="form-range">
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-5 d-flex align-items-center justify-content-center" style="gap: 10px;">
+            <a href="/video" target="_blank" class="btn btn-info w-100 w-lg-auto" style="max-width: 250px;">Video</a>
+            <a href="/manual_gcode" target="_blank" class="btn btn-outline-primary w-100 w-lg-auto" style="max-width: 250px;">Manual G-code</a>
+          </div>
+        </div>
+
+        <!-- Homing & Grip -->
+        <div class="mb-3 d-flex align-items-center flex-wrap" style="gap: 12px; max-width: 100%;">
+          <button id="btnStop" class="btn btn-danger me-2">STOP</button>
+          <button id="btnReset" class="btn btn-warning me-2">RESET</button>
+          <button id="btnEnableMotors" class="btn btn-info me-2">Abilita Motori</button>
+          <button id="btnHoming" class="btn btn-warning me-2">Homing</button>
+          <div class="grip-control" style="margin-bottom: 0;">
+            <button id="btnOpen" class="btn btn-secondary me-2">Open Grip</button>
+            <button id="btnClose" class="btn btn-secondary">Close Grip</button>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Log -->
-    <div class="card">
-      <div class="card-body p-2">
-        <pre id="log" class="bg-dark text-light p-2 log-area"></pre>
+    <div class="d-flex justify-content-center">
+      <div class="card" style="width: 100%; max-width: 1200px; margin: 0 16px;">
+        <div class="card-header text-center">
+          Log
+        </div>
+        <div class="card-body p-2">
+          <pre id="log" class="bg-dark text-light p-2 log-area"></pre>
+        </div>
       </div>
     </div>
   </div>
@@ -218,23 +183,6 @@
     document.getElementById('btnOpen').onclick   = () => axios.post('/api/upload',{commands:[{cmd:'grip',angle:0}]}).then(()=>axios.post('/api/run_queue')).then(()=>log('Grip open'));
     document.getElementById('btnClose').onclick  = () => axios.post('/api/upload',{commands:[{cmd:'grip',angle:84}]}).then(()=>axios.post('/api/run_queue')).then(()=>log('Grip close'));
 
-    // Jog with hold
-    let jogTimer;
-    function startJog(ax, m){ 
-      axios.post('/api/jog',{axis:ax,mm:m})
-        .then(r=>log(`Jog ${ax} ${m>0?'+':'-'}1 → ${r.data.status}`))
-        .catch(e => log(`Jog error: ${e}`));
-      jogTimer = setTimeout(()=>startJog(ax,m), 200); 
-    }
-    function stopJog(){ clearTimeout(jogTimer); }
-    [['jXpos','X',1],['jYpos','Y',1],['jZpos','Z',1],
-     ['jXneg','X',-1],['jYneg','Y',-1],['jZneg','Z',-1]
-    ].forEach(([id,ax,m]) => {
-      const btn= document.getElementById(id);
-      ['mousedown','touchstart'].forEach(ev=>btn.addEventListener(ev, ()=>startJog(ax,m)));
-      ['mouseup','mouseleave','touchend'].forEach(ev=>btn.addEventListener(ev, stopJog));
-    });
-
     // Emergency & Reset & Enable Motors
     document.getElementById('btnStop').onclick = () => {
       axios.post('/api/stop').then(r=>{
@@ -255,15 +203,6 @@
     document.getElementById('btnEnableMotors').onclick = () => {
       axios.post('/api/enable_motors').then(r=>{ log('Motori abilitati → '+r.data.status); document.getElementById('btnEnableMotors').disabled=true; });
     };
-
-    // Send G-code
-    document.getElementById('btnSendGcode').onclick = () => {
-      const code = document.getElementById('gcodeInput').value.trim();
-      if(!code) return log('Nessun G-code da inviare');
-      axios.post('/api/gcode',{ code })
-        .then(r=>log(`Movimenti inviati: ${r.data.sent}`))
-        .catch(e => log(`G-code error: ${e}`));
-    };
     
     // Nuove funzionalità
     
@@ -281,36 +220,6 @@
           log('Errore lettura posizione: ' + error.message);
         });
     }
-    
-    // Controllo avanzato del gripper
-    document.getElementById('gripRange').addEventListener('input', function() {
-      const angle = this.value;
-      document.getElementById('gripVal').textContent = angle + '°';
-    });
-    
-    document.getElementById('gripRange').addEventListener('change', function() {
-      const angle = parseInt(this.value);
-      axios.post('/api/upload', {commands: [{cmd: 'grip', angle}]})
-        .then(() => axios.post('/api/run_queue'))
-        .then(() => log(`Gripper impostato a ${angle}°`));
-    });
-    
-    // Movimento a oggetto
-    document.getElementById('btnMoveToObject').onclick = () => {
-      const objectId = document.getElementById('objectId').value;
-      if (!objectId) {
-        log('Inserire un ID oggetto valido');
-        return;
-      }
-      
-      axios.post('/api/move_to_object', {object_id: parseInt(objectId)})
-        .then(r => {
-          if (r.data.status === 'pick_queued') {
-            log(`Movimento a oggetto ${objectId} in coda (${r.data.moves} movimenti)`);
-          }
-        })
-        .catch(e => log(`Errore movimento: ${e.response?.data?.error || e.message}`));
-    };
     
     // Inizializzazioni aggiuntive
     document.getElementById('btnGetPosition').onclick = updatePosition;

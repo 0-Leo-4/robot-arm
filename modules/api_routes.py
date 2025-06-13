@@ -1,5 +1,5 @@
 # modules/api_routes.py
-from flask import Blueprint, request, jsonify, render_template, Response, Flask
+from flask import Blueprint, request, jsonify, render_template, Response
 import subprocess
 import time
 import os
@@ -12,7 +12,7 @@ from .shared_state import state
 # Blueprint per le route API
 bp = Blueprint('api', __name__, template_folder='templates', static_folder='static')
 
-# Variabile per il relè (inizializzata in app.py)
+# Variabile per il relè di alimentaione
 RELAY_GPIO = 17
 
 @bp.route('/')
@@ -109,7 +109,6 @@ def homing():
 def stop():
     state.emergency_active = True
     serial_comms.try_write({"cmd": "stop"})
-    # Attiva il relè (HIGH) per fermare il nastro
     state.relay.on()
     return jsonify(status='stopped')
 
@@ -117,7 +116,6 @@ def stop():
 def reset_alarm():
     state.emergency_active = False
     serial_comms.try_write({"cmd": "reset"})
-    # Disattiva il relè (LOW) per riattivare il nastro
     state.relay.off()
     return jsonify(status='reset')
 
