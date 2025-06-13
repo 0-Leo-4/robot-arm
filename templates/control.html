@@ -204,8 +204,6 @@
       axios.post('/api/enable_motors').then(r=>{ log('Motori abilitati → '+r.data.status); document.getElementById('btnEnableMotors').disabled=true; });
     };
     
-    // Nuove funzionalità
-    
     // Aggiornamento posizione corrente
     function updatePosition() {
       axios.get('/api/get_current_position')
@@ -223,11 +221,11 @@
     
     // Inizializzazioni aggiuntive
     document.getElementById('btnGetPosition').onclick = updatePosition;
-    setInterval(updatePosition, 10000);  // Aggiorna posizione ogni 10s
+    // setInterval(updatePosition, 10000);  // Aggiorna posizione ogni 10s
     
     // Inizializza UI
     setUI(true);
-    updatePosition();  // Prima lettura posizione
+    //updatePosition();  // Prima lettura posizione
   </script>
 </body>
 </html>
