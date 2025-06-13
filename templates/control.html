@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Robot Control</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <style>
+    body, .bg-dark { background-color: #181a1b !important; }
+    .card, .form-range, .log-area, .btn, .form-control {
+      background-color: #23272b !important;
+      color: #f8f9fa !important;
+      border-color: #343a40 !important;
+    }
+    .btn-info { background-color: rgb(26,104,119) !important; border-color: #0dcaf0 !important; }
+    .btn-warning { background-color: #ffc107 !important; border-color: #ffc107 !important; color: #181a1b !important; }
+    .btn-secondary { background-color: #6c757d !important; border-color: #6c757d !important; }
+    .btn-danger { background-color: #dc3545 !important; border-color: #dc3545 !important; }
+    .btn-outline-primary { border-color: #0d6efd !important; color: #0d6efd !important; }
+    .btn-outline-danger { border-color: #dc3545 !important; color: #dc3545 !important; }
+    .btn-outline-primary:hover, .btn-outline-primary:active { background-color: #0d6efd !important; color: #fff !important; }
+    .btn-outline-danger:hover, .btn-outline-danger:active { background-color: #dc3545 !important; color: #fff !important; }
+    .form-range::-webkit-slider-thumb, .form-range::-moz-range-thumb, .form-range::-ms-thumb { background: #0dcaf0; }
+    label, h1, h5, .card-header { color: #f8f9fa !important; }
+    .card-header { background-color: #23272b !important; border-bottom: 1px solid #343a40 !important; }
+    .log-area { border-radius: 4px; }
+    .status-badge { min-width: 120px; }
+    
+    /* Aggiunte */
+    .position-display {
+      background: #2c3034;
+      padding: 10px;
+      border-radius: 5px;
+      font-family: monospace;
+    }
+    .calibration-section {
+      background: #1e2226;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 20px;
+    }
+    .grip-control {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+
+      </style>
+    </head>
+    <body class="bg-dark">
+      <div class="container py-4">
+        <h1 class="mb-2">
+          Robot Control 
+          <span id="picoStatus" class="badge bg-success ms-2 status-badge">Pico: Connesso</span>
+        </h1>
+
+        <!-- Settings -->
+        <div class="row mb-4">
+          <!-- Settings -->
+          <div class="col-lg-7 mb-3 mb-lg-0">
+            <div class="card bg-dark text-light h-100">
+              <div class="card-header">Settings</div>
+              <div class="card-body">
+                <div class="mb-2">
+                  <button id="btnRebootPi"   class="btn btn-info me-2 mb-2">Reboot Pi5</button>
+                  <button id="btnRebootPico" class="btn btn-info mb-2">Reboot Pico</button>
+                </div>
+                <div class="mb-2">
+                  <button id="btnDiscPico"   class="btn btn-secondary me-2 mb-2">Disconnect Pico</button>
+                  <button id="btnConnPico"   class="btn btn-secondary mb-2">Reconnect Pico</button>
+                </div>
+                <div>
+                  <button id="btnGitPull" class="btn btn-info">Pull Updates</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Posizione in tempo reale -->
+          <div class="col-lg-5">
+            <div class="card h-100 bg-dark text-light">
+              <div class="card-header">Posizione Corrente</div>
+              <div class="card-body d-flex align-items-center justify-content-center">
+                <div id="currentPosition" class="position-display w-100 text-center">
+                  X: --, Y: --, Z: --
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Speed Slider & Video/G-code Buttons -->
+        <div class="row mb-3">
+          <div class="col-lg-7 mb-2 mb-lg-0">
+            <div class="d-flex align-items-center h-100">
+              <div class="flex-grow-1">
+                <label>Speed: <span id="speedVal">100%</span></label>
+                <input type="range" id="speedRange" min="1" max="100" step="1" value="100" class="form-range">
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-5 d-flex align-items-center justify-content-center" style="gap: 10px;">
+            <a href="/video" target="_blank" class="btn btn-info w-100 w-lg-auto" style="max-width: 250px;">Video</a>
+            <a href="/manual_gcode" target="_blank" class="btn btn-outline-primary w-100 w-lg-auto" style="max-width: 250px;">Manual G-code</a>
+          </div>
+        </div>
+
+        <!-- Homing & Grip -->
+        <div class="mb-3 d-flex align-items-center flex-wrap" style="gap: 12px; max-width: 100%;">
+          <button id="btnStop" class="btn btn-danger me-2">STOP</button>
+          <button id="btnReset" class="btn btn-warning me-2">RESET</button>
+          <button id="btnEnableMotors" class="btn btn-info me-2">Abilita Motori</button>
+          <button id="btnHoming" class="btn btn-warning me-2">Homing</button>
+          <div class="grip-control" style="margin-bottom: 0;">
+            <button id="btnOpen" class="btn btn-secondary me-2">Open Grip</button>
+            <button id="btnClose" class="btn btn-secondary">Close Grip</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Log -->
+    <div class="d-flex justify-content-center">
+      <div class="card" style="width: 100%; max-width: 1200px; margin: 0 16px;">
+        <div class="card-header text-center">
+          Log
+        </div>
+        <div class="card-body p-2">
+          <pre id="log" class="bg-dark text-light p-2 log-area"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Script -->
+  <script>
+    const logEl = document.getElementById('log');
+    function log(msg) {
+      logEl.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + logEl.textContent;
+    }
+    function setUI(on) {
+      document.querySelectorAll('button, input').forEach(el => el.disabled = !on);
+    }
+
+    // Pico status badge
+    const statusEl = document.getElementById('picoStatus');
+    function updatePicoStatus(){
+      axios.get('/api/pico_status')
+        .then(r => {
+          const ok = r.data.connected;
+          statusEl.textContent = ok ? 'Pico: Connesso' : 'Pico: Disconnesso';
+          statusEl.className = ok ? 'badge bg-success ms-2 status-badge' : 'badge bg-danger ms-2 status-badge';
+        })
+        .catch(_ => {
+          statusEl.textContent = 'Pico: Errore';
+          statusEl.className = 'badge bg-warning ms-2 status-badge';
+        });
+    }
+    
+    updatePicoStatus();
+    setInterval(updatePicoStatus, 5000);
+
+    // Speed control
+    const spR = document.getElementById('speedRange'), spV = document.getElementById('speedVal');
+    spR.oninput = () => { spV.textContent = spR.value + '%'; };
+    spR.onchange = () => { axios.post('/api/set_speed', { speed_pct: +spR.value }); };
+
+    // Reboot/Connect buttons
+    document.getElementById('btnRebootPi').onclick = () => {
+      if(confirm('Reboot Pi5?')) axios.post('/api/reboot_pi').then(r=>log('Pi5 → '+r.data.status));
+    };
+    document.getElementById('btnRebootPico').onclick = () => {
+      if(confirm('Reboot Pico?')) axios.post('/api/reboot_pico').then(r=>log('Pico → '+r.data.status));
+    };
+    document.getElementById('btnDiscPico').onclick = () => { axios.post('/api/disconnect_pico').then(r=>{log('Pico → '+r.data.status); updatePicoStatus();}); };
+    document.getElementById('btnConnPico').onclick = () => { axios.post('/api/reconnect_pico').then(r=>{log('Pico → '+r.data.status); updatePicoStatus();}); };
+    document.getElementById('btnGitPull').onclick = () => {
+      if(confirm('Git pull & restart?')) axios.post('/api/git_pull').then(r=>{log('Git → '+r.data.status); log(r.data.output);});
+    };
+
+    // Homing & Grip
+    document.getElementById('btnHoming').onclick = () => axios.post('/api/homing').then(r=>log('Homing → '+r.data.status));
+    document.getElementById('btnOpen').onclick   = () => axios.post('/api/upload',{commands:[{cmd:'grip',angle:0}]}).then(()=>axios.post('/api/run_queue')).then(()=>log('Grip open'));
+    document.getElementById('btnClose').onclick  = () => axios.post('/api/upload',{commands:[{cmd:'grip',angle:84}]}).then(()=>axios.post('/api/run_queue')).then(()=>log('Grip close'));
+
+    // Emergency & Reset & Enable Motors
+    document.getElementById('btnStop').onclick = () => {
+      axios.post('/api/stop').then(r=>{
+      log('STOP → '+r.data.status);
+      setUI(false);
+      document.getElementById('btnReset').disabled = false;
+      // Settings buttons remain enabled after STOP
+      document.getElementById('btnGitPull').disabled = false;
+      document.getElementById('btnRebootPi').disabled = false;
+      document.getElementById('btnRebootPico').disabled = false;
+      document.getElementById('btnDiscPico').disabled = false;
+      document.getElementById('btnConnPico').disabled = false;
+      });
+    };
+    document.getElementById('btnReset').onclick = () => {
+      axios.post('/api/reset').then(r=>{ log('RESET → '+r.data.status); setUI(true); document.getElementById('btnEnableMotors').disabled=true; });
+    };
+    document.getElementById('btnEnableMotors').onclick = () => {
+      axios.post('/api/enable_motors').then(r=>{ log('Motori abilitati → '+r.data.status); document.getElementById('btnEnableMotors').disabled=true; });
+    };
+    
+    // Aggiornamento posizione corrente
+    function updatePosition() {
+      axios.get('/api/get_current_position')
+        .then(response => {
+          if (response.data.status === 'ok') {
+            const pos = response.data.position;
+            document.getElementById('currentPosition').innerHTML = 
+              `X: ${pos.x.toFixed(2)}, Y: ${pos.y.toFixed(2)}, Z: ${pos.z.toFixed(2)}`;
+          }
+        })
+        .catch(error => {
+          log('Errore lettura posizione: ' + error.message);
+        });
+    }
+    
+    // Inizializzazioni aggiuntive
+    document.getElementById('btnGetPosition').onclick = updatePosition;
+    // setInterval(updatePosition, 10000);  // Aggiorna posizione ogni 10s
+    
+    // Inizializza UI
+    setUI(true);
+    //updatePosition();  // Prima lettura posizione
+  </script>
+</body>
+</html>
