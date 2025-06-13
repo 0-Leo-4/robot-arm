@@ -10,7 +10,7 @@ from . import serial_comms, lcd, motion_control
 from .shared_state import state
 
 # Blueprint per le route API
-bp = Blueprint(__name__, template_folder='templates', static_folder='static')
+bp = Blueprint('api', __name__, template_folder='templates', static_folder='static')
 
 # Variabile per il relè di alimentaione
 RELAY_GPIO = 17
