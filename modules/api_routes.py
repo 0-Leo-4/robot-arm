@@ -10,7 +10,7 @@ from . import serial_comms, lcd, motion_control
 from .shared_state import state
 
 # Blueprint per le route API
-bp = Blueprint('api', __name__, template_folder='templates', static_folder='static')
+bp = Blueprint(__name__, template_folder='templates', static_folder='static')
 
 # Variabile per il relè di alimentaione
 RELAY_GPIO = 17
@@ -36,7 +36,7 @@ def video_feed():
             time.sleep(0.033)  # ~30 FPS
     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
-@bp.route('/detections')
+@bp.route('/api/detections')
 def api_detections():
     with state.lock:
         return jsonify({
@@ -45,32 +45,32 @@ def api_detections():
             'detections': state.detections
         })
 
-@bp.route('/frame')
+@bp.route('/api/frame')
 def frame():
     if not state.latest_frame:
         return Response(status=204)
     return Response(state.latest_frame, mimetype='image/jpeg')
 
-@bp.route('/pico_status', methods=['GET'])
+@bp.route('/api/pico_status', methods=['GET'])
 def pico_status():
     if not state.pico or not state.pico.is_open:
         serial_comms.open_pico()
     ok = state.pico is not None and state.pico.is_open
     return jsonify(connected=ok)
 
-@bp.route('/disconnect_pico', methods=['POST'])
+@bp.route('/api/disconnect_pico', methods=['POST'])
 def disconnect_pico():
     if state.pico:
         state.pico.close()
         state.pico = None
     return jsonify(status='disconnected')
 
-@bp.route('/reconnect_pico', methods=['POST'])
+@bp.route('/api/reconnect_pico', methods=['POST'])
 def reconnect_pico():
     serial_comms.open_pico()
     return jsonify(status='reconnected' if state.pico else 'error')
 
-@bp.route('/set_speed', methods=['POST'])
+@bp.route('/api/set_speed', methods=['POST'])
 def set_speed():
     if state.emergency_active:
         return jsonify(status='blocked'), 403
@@ -80,46 +80,28 @@ def set_speed():
     serial_comms.try_write({"cmd": "speed", "speed_pct": v})
     return jsonify(status='ok')
 
-@bp.route('/jog', methods=['POST'])
-def jog():
-    if state.emergency_active:
-        return jsonify(status='blocked'), 403
-
-    data = request.json
-    raw = data.get('axis', '').upper()
-    mapped = motion_control.AXIS_MAP.get(raw)
-    if not mapped:
-        return jsonify(status='error', error=f"Axis {raw} non valido"), 400
-
-    serial_comms.try_write({
-        "axis": mapped,
-        "mm": data['mm'],
-        "speed_pct": state.current_speed
-    })
-    return jsonify(status='ok')
-
-@bp.route('/homing', methods=['POST'])
+@bp.route('/api/homing', methods=['POST'])
 def homing():
     if state.emergency_active:
         return jsonify(status='blocked'), 403
     serial_comms.try_write({"cmd": "homing"})
     return jsonify(status='ok')
 
-@bp.route('/stop', methods=['POST'])
+@bp.route('/api/stop', methods=['POST'])
 def stop():
     state.emergency_active = True
     serial_comms.try_write({"cmd": "stop"})
     state.relay.on()
     return jsonify(status='stopped')
 
-@bp.route('/reset', methods=['POST'])
+@bp.route('/api/reset', methods=['POST'])
 def reset_alarm():
     state.emergency_active = False
     serial_comms.try_write({"cmd": "reset"})
     state.relay.off()
     return jsonify(status='reset')
 
-@bp.route('/enable_motors', methods=['POST'])
+@bp.route('/api/enable_motors', methods=['POST'])
 def enable_motors():
     try:
         state.relay.off()
@@ -127,7 +109,7 @@ def enable_motors():
     except Exception as e:
         return jsonify(status='error', error=str(e)), 500
 
-@bp.route('/gpio', methods=['POST'])
+@bp.route('/api/gpio', methods=['POST'])
 def set_gpio():
     data = request.json
     pin = int(data.get('pin', RELAY_GPIO))
@@ -151,7 +133,7 @@ def set_gpio():
     except Exception as e:
         return jsonify(status='error', error=str(e)), 500
 
-@bp.route('/upload', methods=['POST'])
+@bp.route('/api/upload', methods=['POST'])
 def upload_commands():
     if state.emergency_active:
         return jsonify(status='blocked'), 403
@@ -159,14 +141,14 @@ def upload_commands():
     state.command_queue = cmds
     return jsonify(status='uploaded')
 
-@bp.route('/run_queue', methods=['POST'])
+@bp.route('/api/run_queue', methods=['POST'])
 def run_queue():
     if state.emergency_active:
         return jsonify(status='blocked'), 403
     # La coda verrà gestita dal thread motion_handler
     return jsonify(status='queue_started')
 
-@bp.route('/reboot_pi', methods=['POST'])
+@bp.route('/api/reboot_pi', methods=['POST'])
 def reboot_pi():
     try:
         threading.Thread(target=lambda: os.system('sudo reboot')).start()
@@ -174,7 +156,7 @@ def reboot_pi():
     except Exception as e:
         return jsonify(status='error', error=str(e)), 500
 
-@bp.route('/reboot_pico', methods=['POST'])
+@bp.route('/api/reboot_pico', methods=['POST'])
 def reboot_pico():
     try:
         if state.pico:
@@ -186,7 +168,7 @@ def reboot_pico():
     except Exception as e:
         return jsonify(status='error', error=str(e)), 500
 
-@bp.route('/git_pull', methods=['POST'])
+@bp.route('/api/git_pull', methods=['POST'])
 def git_pull():
     try:
         # Esegui git pull
@@ -207,7 +189,7 @@ def git_pull():
     except Exception as e:
         return jsonify(status='error', output=str(e)), 500
 
-@bp.route('/gcode', methods=['POST'])
+@bp.route('/api/gcode', methods=['POST'])
 def send_gcode():
     if state.emergency_active:
         return jsonify(status='blocked'), 403
@@ -220,7 +202,7 @@ def send_gcode():
     state.command_queue.extend(moves)
     return jsonify(status='ok', queued=len(moves))
 
-@bp.route('/get_current_position', methods=['GET'])
+@bp.route('/api/get_current_position', methods=['GET'])
 def get_current_position():
     """Ottieni la posizione corrente per il frontend"""
     if state.pico and state.pico.is_open:
@@ -236,7 +218,7 @@ def get_current_position():
     return jsonify(status='error', error="Position not available"), 500
 
 
-# @bp.route('/move_to_object', methods=['POST'])
+# @bp.route('/api/move_to_object', methods=['POST'])
 # def move_to_object():
 #     """Muovi il robot verso un oggetto rilevato"""
 #     if state.emergency_active:
