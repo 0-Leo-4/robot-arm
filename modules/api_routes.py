@@ -36,6 +36,10 @@ def video_feed():
             time.sleep(0.033)  # ~30 FPS
     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
+@bp.route('/manual_gcode')
+def manual_gcode():
+    return render_template('manual_gcode.html')
+
 @bp.route('/api/detections')
 def api_detections():
     with state.lock:
