@@ -1,8 +1,6 @@
 import threading
 from gpiozero import OutputDevice
 
-relay = OutputDevice(17, active_high=False, initial_value=True)
-
 class SharedState:
     def __init__(self):
         self.detections = []
@@ -20,7 +18,7 @@ class SharedState:
         self.calibration_active = False
         self.calibration_object = None
         self.command_queue = []
-        self.relay = None
+        self.relay = OutputDevice(17, active_high=False, initial_value=True)
         self.pico = None
 
 state = SharedState()
