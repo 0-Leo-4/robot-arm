@@ -188,13 +188,13 @@
       axios.post('/api/stop').then(r=>{
       log('STOP → '+r.data.status);
       setUI(false);
-      document.getElementById('btnReset').disabled = false;
       // Settings buttons remain enabled after STOP
+      document.getElementById('btnReset').disabled = false;
       document.getElementById('btnGitPull').disabled = false;
       document.getElementById('btnRebootPi').disabled = false;
       document.getElementById('btnRebootPico').disabled = false;
       document.getElementById('btnDiscPico').disabled = false;
-      document.getElementById('btnConnPico').disabled = false;
+      document.getElementById('speedRange').disabled = false;
       });
     };
     document.getElementById('btnReset').onclick = () => {
