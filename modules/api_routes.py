@@ -18,9 +18,10 @@ RELAY_GPIO = 17
 @bp.route('/')
 def index():
     return render_template('control.html',
-        x = state.X,
-        y = state.Y,
-        z = state.Z,)
+        x = state.x,
+        y = state.y,
+        z = state.z
+    )
 
 @bp.route('/video')
 def video_page():
