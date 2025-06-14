@@ -18,7 +18,7 @@ def initialize_modules():
     serial_comms.open_pico()
     
     # Avvia thread di monitoraggio Pico
-    threading.Thread(target=serial_comms.monitor_pico, daemon=True).start()
+    # threading.Thread(target=serial_comms.monitor_pico, daemon=True).start()
     
     # Avvia thread di gestione LCD
     threading.Thread(target=lcd.lcd_handler, daemon=True).start()
