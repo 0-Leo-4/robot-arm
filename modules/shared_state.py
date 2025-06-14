@@ -1,5 +1,5 @@
 import threading
-from time import time
+import time
 from gpiozero import OutputDevice
 
 
