@@ -1,5 +1,4 @@
 import threading
-import time
 from gpiozero import OutputDevice
 
 
@@ -29,14 +28,5 @@ class SharedState:
         self.angle_j2 = 0
         self.angle_j3 = 0
         self.start_sequence = False
-        self.last_angle_update = time.time()
-        self.serial_lock = threading.Lock()  # lock for serial
-        # connection tracking
-        self.last_serial_error = 0
-        self.serial_error_count = 0
-
-    @property
-    def angles_fresh(self):
-        return time.time() - self.last_angle_update < 1.0
 
 state = SharedState()
