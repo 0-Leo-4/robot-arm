@@ -41,45 +41,45 @@ def try_write(command: dict):
         state.pico = None
 
 def handle_serial_message(message: str):
-    if message.startswith("ALL|"):
-        try:
+    try:
+        if message.startswith("ALL|"):
             data = json.loads(message[4:])
             with state.lock:
-                # Aggiorna angoli
+                # Aggiorna angoli con fallback
                 angles = data.get('angles', {})
-                state.angle_j1 = angles.get('j1', 0)
-                state.angle_j2 = angles.get('j2', 0)
-                state.angle_j3 = angles.get('j3', 0)
+                state.angle_j1 = angles.get('j1', state.angle_j1)
+                state.angle_j2 = angles.get('j2', state.angle_j2)
+                state.angle_j3 = angles.get('j3', state.angle_j3)
                 
-                # Aggiorna posizione
+                # Aggiorna posizione con fallback
                 position = data.get('position', {})
-                state.x = position.get('BASE', 0)
-                state.y = position.get('M1', 0)
-                state.z = position.get('M2', 0)
+                state.x = position.get('BASE', state.x)
+                state.y = position.get('M1', state.y)
+                state.z = position.get('M2', state.z)
                 
                 # Aggiorna timestamp ultimo aggiornamento
                 state.last_update = time.time()
-        except json.JSONDecodeError:
-            print(f"Invalid ALL message: {message}")
-    elif message.startswith("ANG|"):
-        try:
-            angles = json.loads(message[4:])
-            with state.lock:
-                state.angle_j1 = angles.get('j1', 0)
-                state.angle_j2 = angles.get('j2', 0)
-                state.angle_j3 = angles.get('j3', 0)
-                state.last_angle_update = time.time()
-        except json.JSONDecodeError:
-            print(f"Invalid ANG message: {message}")
-    elif message.startswith("POS|"):
-        try:
-            position = json.loads(message[4:])
-            with state.lock:
-                state.x = position.get('BASE', 0)
-                state.y = position.get('M1', 0)
-                state.z = position.get('M2', 0)
-        except json.JSONDecodeError:
-            print(f"Invalid POS message: {message}")
+        elif message.startswith("ANG|"):
+            try:
+                angles = json.loads(message[4:])
+                with state.lock:
+                    state.angle_j1 = angles.get('j1', state.angle_j1)
+                    state.angle_j2 = angles.get('j2', state.angle_j2)
+                    state.angle_j3 = angles.get('j3', state.angle_j3)
+                    state.last_angle_update = time.time()
+            except json.JSONDecodeError:
+                print(f"Invalid ANG message: {message[:50]}...")
+        elif message.startswith("POS|"):
+            try:
+                position = json.loads(message[4:])
+                with state.lock:
+                    state.x = position.get('BASE', state.x)
+                    state.y = position.get('M1', state.y)
+                    state.z = position.get('M2', state.z)
+            except json.JSONDecodeError:
+                print(f"Invalid POS message: {message[:50]}...")
+    except Exception as e:
+        print(f"Error handling message: {e}")
 
 def request_pico_data():
     """Richiede tutti i dati al Pico in un unico comando"""
@@ -115,7 +115,7 @@ def periodic_data_request():
     while True:
         if state.pico and state.pico.is_open:
             request_pico_data()
-        time.sleep(0.1)  # 100ms
+        time.sleep(0.15)  # 150ms per ridurre il carico
 
 # Avvia i thread all'import
 threading.Thread(target=serial_reader, daemon=True).start()

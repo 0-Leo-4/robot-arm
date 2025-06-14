@@ -1,4 +1,3 @@
-# modules/api_routes.py
 from flask import Blueprint, request, jsonify, render_template, Response
 import subprocess
 import time
@@ -17,14 +16,16 @@ RELAY_GPIO = 17
 
 @bp.route('/')
 def index():
-    return render_template('control.html',
-        x = state.x,
-        y = state.y,
-        z = state.z,
-        j1 = state.angle_j1,
-        j2 = state.angle_j2,
-        j3 = state.angle_j3
-    )
+    # Utilizza lo stato corrente invece di valori di default
+    with state.lock:
+        return render_template('control.html',
+            x = state.x,
+            y = state.y,
+            z = state.z,
+            j1 = state.angle_j1,
+            j2 = state.angle_j2,
+            j3 = state.angle_j3
+        )
 
 @bp.route('/video')
 def video_page():
@@ -34,10 +35,14 @@ def video_page():
 def video_feed():
     def generate():
         while True:
-            if state.latest_frame:
+            # Usa un lock per accedere allo stato in modo sicuro
+            with state.lock:
+                frame = state.latest_frame
+            if frame:
                 yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + state.latest_frame + b'\r\n')
-            time.sleep(0.016)  # ~60 FPS
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+            time.sleep(0.033)  # ~30 FPS per ridurre il carico
+    
     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @bp.route('/manual_gcode')
@@ -46,44 +51,67 @@ def manual_gcode():
 
 @bp.route('/api/detections')
 def api_detections():
-    with state.lock:
+    # Utilizza un timeout per evitare deadlock
+    acquired = state.lock.acquire(timeout=0.1)
+    if acquired:
+        try:
+            return jsonify({
+                'frame_url': '/api/frame', 
+                'detections': state.detections
+            })
+        finally:
+            state.lock.release()
+    else:
         return jsonify({
-            'frame_url': '/api/frame', 
-            'detections': state.detections
-        })
+            'status': 'timeout',
+            'message': 'State lock timeout'
+        }), 503
 
 @bp.route('/api/frame')
 def frame():
-    if not state.latest_frame:
+    # Accesso sicuro allo stato con lock
+    with state.lock:
+        frame = state.latest_frame
+    if not frame:
         return Response(status=204)
-    return Response(state.latest_frame, mimetype='image/jpeg')
+    return Response(frame, mimetype='image/jpeg')
 
 @bp.route('/api/pico_status', methods=['GET'])
 def pico_status():
+    # Controlla lo stato senza lock prolungato
     if not state.pico or not state.pico.is_open:
-        serial_comms.open_pico()
+        # Tenta la riconnessione in un thread separato
+        threading.Thread(target=serial_comms.open_pico).start()
+    
     ok = state.pico is not None and state.pico.is_open
     return jsonify(connected=ok)
 
 @bp.route('/api/disconnect_pico', methods=['POST'])
 def disconnect_pico():
     if state.pico:
-        state.pico.close()
+        try:
+            state.pico.close()
+        except:
+            pass
         state.pico = None
     return jsonify(status='disconnected')
 
 @bp.route('/api/reconnect_pico', methods=['POST'])
 def reconnect_pico():
-    serial_comms.open_pico()
-    return jsonify(status='reconnected' if state.pico else 'error')
+    # Esegui la riconnessione in un thread separato
+    threading.Thread(target=serial_comms.open_pico).start()
+    return jsonify(status='reconnecting')
 
 @bp.route('/api/set_speed', methods=['POST'])
 def set_speed():
     if state.emergency_active:
         return jsonify(status='blocked'), 403
+    
     v = int(request.json.get('speed_pct', 100))
     state.current_speed = v
     lcd.set_speed(v)
+    
+    # Invia il comando senza attendere risposta
     serial_comms.try_write({"cmd": "speed", "speed_pct": v})
     return jsonify(status='ok')
 
@@ -91,8 +119,10 @@ def set_speed():
 def homing():
     if state.emergency_active:
         return jsonify(status='blocked'), 403
+    
+    # Invia il comando e ritorna immediatamente
     serial_comms.try_write({"cmd": "homing"})
-    return jsonify(status='ok')
+    return jsonify(status='started')
 
 @bp.route('/api/stop', methods=['POST'])
 def stop():
@@ -111,7 +141,8 @@ def reset_alarm():
 @bp.route('/api/start_sequence', methods=['POST'])
 def start_sequence():
     try:
-        
+        # Imposta il flag per avviare la sequenza di visione
+        state.start_sequence = True
         return jsonify(status='started')
     except Exception as e:
         return jsonify(status='error', error=str(e)), 500
@@ -121,6 +152,7 @@ def set_gpio():
     data = request.json
     pin = int(data.get('pin', RELAY_GPIO))
     state_val = int(data.get('state', 0))
+    
     try:
         if pin == RELAY_GPIO:
             if state_val:
@@ -144,15 +176,17 @@ def set_gpio():
 def upload_commands():
     if state.emergency_active:
         return jsonify(status='blocked'), 403
+    
     cmds = request.json.get('commands', [])
     state.command_queue = cmds
-    return jsonify(status='uploaded')
+    return jsonify(status='uploaded', count=len(cmds))
 
 @bp.route('/api/run_queue', methods=['POST'])
 def run_queue():
     if state.emergency_active:
         return jsonify(status='blocked'), 403
-    # La coda verrà gestita dal thread motion_handler
+    
+    # Invia solo un flag, la coda verrà gestita dal thread
     return jsonify(status='queue_started')
 
 @bp.route('/api/reboot_pi', methods=['POST'])
@@ -189,9 +223,10 @@ def git_pull():
         )
         output = result.stdout + result.stderr
         status = 'ok' if result.returncode == 0 else 'error'
-        # Riavvia l'app (processo Python)
-        if result.returncode == 0:
-            threading.Thread(target=lambda: (time.sleep(1), os._exit(0)).start())
+        
+        # Riavvia l'app solo se ci sono aggiornamenti
+        if result.returncode == 0 and "Already up to date" not in output:
+            threading.Thread(target=lambda: (time.sleep(1), os._exit(0))).start()
         return jsonify(status=status, output=output)
     except Exception as e:
         return jsonify(status='error', output=str(e)), 500
@@ -203,26 +238,58 @@ def send_gcode():
         
     payload = request.json or {}
     code = payload.get('code', '')
-    moves = motion_control.parse_gcode_to_moves(code)
     
-    # Aggiungi i movimenti alla coda di comandi
-    state.command_queue.extend(moves)
-    return jsonify(status='ok', queued=len(moves))
+    try:
+        moves = motion_control.parse_gcode_to_moves(code)
+        # Aggiungi i movimenti alla coda di comandi
+        state.command_queue.extend(moves)
+        return jsonify(status='ok', queued=len(moves))
+    except Exception as e:
+        return jsonify(status='error', error=str(e)), 500
 
 @bp.route('/api/get_current_state', methods=['GET'])
 def get_current_state():
-    # Restituisce semplicemente l'ultimo stato noto
-    with state.lock:
+    # Timeout per evitare deadlock
+    acquired = state.lock.acquire(timeout=0.1)
+    if acquired:
+        try:
+            return jsonify({
+                'status': 'ok',
+                'position': {
+                    'x': state.x,
+                    'y': state.y,
+                    'z': state.z
+                },
+                'angles': {
+                    'j1': state.angle_j1,
+                    'j2': state.angle_j2,
+                    'j3': state.angle_j3
+                }
+            })
+        finally:
+            state.lock.release()
+    else:
+        # Risposta di fallback in caso di timeout
         return jsonify({
-            'status': 'ok',
-            'position': {
-                'x': state.x,
-                'y': state.y,
-                'z': state.z
-            },
-            'angles': {
-                'j1': state.angle_j1,
-                'j2': state.angle_j2,
-                'j3': state.angle_j3
-            }
-        })
+            'status': 'timeout',
+            'message': 'State lock timeout'
+        }), 503
+
+# --- Nuove API per gestione errori ---
+@bp.route('/api/system_status', methods=['GET'])
+def system_status():
+    status = {
+        'pico_connected': state.pico is not None and state.pico.is_open,
+        'emergency_active': state.emergency_active,
+        'command_queue_length': len(state.command_queue),
+        'last_update': state.last_update,
+        'fps': getattr(state, 'fps', 0)
+    }
+    return jsonify(status)
+
+@bp.route('/api/clear_errors', methods=['POST'])
+def clear_errors():
+    # Reset degli errori senza influenzare lo stato operativo
+    if state.pico and not state.pico.is_open:
+        state.pico = None
+    return jsonify(status='errors_cleared')
