@@ -20,15 +20,15 @@ def index():
     return render_template('control.html',
         x = state.x,
         y = state.y,
-        z = state.z
+        z = state.z,
+        j1 = state.angle_x,
+        j2 = state.angle_y,
+        j3 = state.angle_z
     )
 
 @bp.route('/video')
 def video_page():
-    return render_template('video.html',
-        conveyor_speed=str(state.conveyor_speed), resolution='1280x720',
-        fps=f"{state.fps}", detection_interval='100 ms'
-    )
+    return render_template('video.html')
     
 @bp.route('/video_feed')
 def video_feed():
@@ -49,7 +49,6 @@ def api_detections():
     with state.lock:
         return jsonify({
             'frame_url': '/api/frame', 
-            'fps': state.fps, 
             'detections': state.detections
         })
 
@@ -109,11 +108,11 @@ def reset_alarm():
     state.relay.off()
     return jsonify(status='reset')
 
-@bp.route('/api/enable_motors', methods=['POST'])
-def enable_motors():
+@bp.route('/api/start_sequence', methods=['POST'])
+def start_sequence():
     try:
-        state.relay.off()
-        return jsonify(status='enabled')
+        
+        return jsonify(status='started')
     except Exception as e:
         return jsonify(status='error', error=str(e)), 500
 
@@ -225,6 +224,20 @@ def get_current_position():
             return jsonify(status='error', error=str(e)), 500
     return jsonify(status='error', error="Position not available"), 500
 
+@bp.route('/api/get_current_angles', methods=['GET'])
+def get_current_angles():
+    """Ottieni gli angoli correnti per il frontend"""
+    if state.pico and state.pico.is_open:
+        try:
+            serial_comms.try_write({"cmd": "getenc"})
+            time.sleep(0.5)
+            if state.pico.in_waiting:
+                response = state.pico.readline().decode().strip()
+                if response.startswith("ANG|"):
+                    return jsonify(status='ok', angles=json.loads(response[4:]))
+        except Exception as e:
+            return jsonify(status='error', error=str(e)), 500
+    return jsonify(status='error', error="Angles not available"), 500
 
 # @bp.route('/api/move_to_object', methods=['POST'])
 # def move_to_object():

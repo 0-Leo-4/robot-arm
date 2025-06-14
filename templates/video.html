@@ -70,15 +70,9 @@
         <img src="/video_feed" id="video-image" alt="Video Feed">
         <canvas id="video-canvas"></canvas>
       </div>
-      <div class="fps-label-outside" id="fps-label">FPS: --</div>
     </div>
     <div class="stats-section">
       <div class="stat-box">
-        <h3>Statistics</h3>
-        <p><strong>Conveyor Speed:</strong> {{ conveyor_speed }} mm/s</p>
-        <p><strong>Resolution:</strong> {{ resolution }}</p>
-        <p><strong>FPS:</strong> <span id="fps-value">{{ fps }}</span></p>
-        <p><strong>Detection interval:</strong> {{ detection_interval }}</p>
         <h3 style="margin-top:24px;">Detected Pieces - Coordinates</h3>
         <table id="pieces-table">
           <thead>
@@ -131,9 +125,7 @@
 
     async function updateDetections() {
       const res = await fetch('/api/detections');
-      const { detections, fps } = await res.json();
-      document.getElementById('fps-label').textContent = `FPS: ${fps}`;
-      document.getElementById('fps-value').textContent = fps;
+      const { detections } = await res.json();
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 

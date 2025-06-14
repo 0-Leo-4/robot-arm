@@ -1,10 +1,10 @@
 import threading
 from gpiozero import OutputDevice
 
+
 class SharedState:
     def __init__(self):
         self.detections = []
-        self.fps = 0.0
         self.current_speed = 100
         self.emergency_active = False
         self.latest_frame = None
@@ -24,5 +24,9 @@ class SharedState:
         self.x = 0
         self.y = 0
         self.z = 0
+        self.angle_x = 0
+        self.angle_y = 0
+        self.angle_z = 0
+        self.start_sequence = False
 
 state = SharedState()

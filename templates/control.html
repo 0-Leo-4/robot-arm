@@ -77,16 +77,19 @@
             </div>
           </div>
           <!-- Posizione in tempo reale -->
-          <div class="col-lg-5">
+            <div class="col-lg-5">
             <div class="card h-100 bg-dark text-light">
               <div class="card-header">Posizione Corrente</div>
-              <div class="card-body d-flex align-items-center justify-content-center">
-                <div id="currentPosition" class="position-display w-100 text-center">
-                  X: {{ x|default('--') }}, Y: {{ y|default('--') }}, Z: {{ z|default('--') }}
-                </div>
+              <div class="card-body d-flex align-items-center justify-content-center flex-column">
+              <div id="currentPosition" class="position-display w-100 text-center mb-2">
+                X: {{ x|default('--') }}, Y: {{ y|default('--') }}, Z: {{ z|default('--') }}
+              </div>
+              <div id="currentAngles" class="position-display w-100 text-center">
+                J1: {{ j1|default('--') }}°, J2: {{ j2|default('--') }}°, J3: {{ j3|default('--') }}°
+              </div>
               </div>
             </div>
-          </div>
+            </div>
         </div>
 
         <!-- Speed Slider & Video/G-code Buttons -->
@@ -109,7 +112,7 @@
         <div class="mb-3 d-flex align-items-center flex-wrap" style="gap: 12px; max-width: 100%;">
           <button id="btnStop" class="btn btn-danger me-2">STOP</button>
           <button id="btnReset" class="btn btn-warning me-2">RESET</button>
-          <button id="btnEnableMotors" class="btn btn-info me-2">Abilita Motori</button>
+          <button id="btnStartSequence" class="btn btn-info me-2">Avvia Sequenza</button>
           <button id="btnHoming" class="btn btn-warning me-2">Homing</button>
           <div class="grip-control" style="margin-bottom: 0;">
             <button id="btnOpen" class="btn btn-secondary me-2">Open Grip</button>
@@ -183,7 +186,7 @@
     document.getElementById('btnOpen').onclick   = () => axios.post('/api/upload',{commands:[{cmd:'grip',angle:0}]}).then(()=>axios.post('/api/run_queue')).then(()=>log('Grip open'));
     document.getElementById('btnClose').onclick  = () => axios.post('/api/upload',{commands:[{cmd:'grip',angle:84}]}).then(()=>axios.post('/api/run_queue')).then(()=>log('Grip close'));
 
-    // Emergency & Reset & Enable Motors
+    // Emergency & Reset & Start Sequence
     document.getElementById('btnStop').onclick = () => {
       axios.post('/api/stop').then(r=>{
       log('STOP → '+r.data.status);
@@ -197,11 +200,9 @@
       document.getElementById('speedRange').disabled = false;
       });
     };
-    document.getElementById('btnReset').onclick = () => {
-      axios.post('/api/reset').then(r=>{ log('RESET → '+r.data.status); setUI(true); document.getElementById('btnEnableMotors').disabled=true; });
-    };
-    document.getElementById('btnEnableMotors').onclick = () => {
-      axios.post('/api/enable_motors').then(r=>{ log('Motori abilitati → '+r.data.status); document.getElementById('btnEnableMotors').disabled=true; });
+    
+    document.getElementById('btnStartSequence').onclick = () => {
+      axios.post('/api/start_sequence').then(r=>{ log('Sequenza avviata → '+r.data.status)});
     };
     
     // Aggiornamento posizione corrente
@@ -218,14 +219,32 @@
           log('Errore lettura posizione: ' + error.message);
         });
     }
+
+    // Aggiornamento solo angoli correnti
+    function updateAngles() {
+      axios.get('/api/get_current_angles')
+      .then(response => {
+      if (response.data.status === 'ok') {
+        const ang = response.data.angles;
+        if (ang.j1 !== undefined && ang.j2 !== undefined && ang.j3 !== undefined) {
+        document.getElementById('currentAngles').innerHTML =
+          `J1: ${ang.j1.toFixed(2)}°, J2: ${ang.j2.toFixed(2)}°, J3: ${ang.j3.toFixed(2)}°`;
+        }
+      }
+      })
+      .catch(error => {
+      log('Errore lettura angoli: ' + error.message);
+      });
+    }
     
     // Inizializzazioni aggiuntive
-    document.getElementById('btnGetPosition').onclick = updatePosition;
     // setInterval(updatePosition, 10000);  // Aggiorna posizione ogni 10s
-    
+    setInterval(updateAngles, 10);  // Aggiorna angoli ogni 10ms
+
     // Inizializza UI
     setUI(true);
     //updatePosition();  // Prima lettura posizione
+    updateAngles();  // Prima lettura angoli
   </script>
 </body>
 </html>
