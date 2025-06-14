@@ -227,13 +227,11 @@
     }
     
     // Inizializzazioni aggiuntive
-    // setInterval(updatePosition, 10000);  // Aggiorna posizione ogni 10s
-    setInterval(updateAngles, 100);  // Aggiorna angoli ogni 100ms
+    setInterval(updateState, 100);  // Aggiorna angoli ogni 100ms
 
     // Inizializza UI
     setUI(true);
-    //updatePosition();  // Prima lettura posizione
-    updateAngles();  // Prima lettura angoli
+    updateState();  // Prima lettura angoli
   </script>
 </body>
 </html>
