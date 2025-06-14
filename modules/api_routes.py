@@ -21,9 +21,9 @@ def index():
         x = state.x,
         y = state.y,
         z = state.z,
-        j1 = state.angle_x,
-        j2 = state.angle_y,
-        j3 = state.angle_z
+        j1 = state.angle_j1,
+        j2 = state.angle_j2,
+        j3 = state.angle_j3
     )
 
 @bp.route('/video')
