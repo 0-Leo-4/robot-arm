@@ -8,13 +8,22 @@ SERIAL_PORT = '/dev/ttyACM0'
 BAUDRATE = 115200
 
 def open_pico():
-    try:
-        state.pico = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=0.1)
-        time.sleep(2)  # Attendere inizializzazione
-        state.pico.reset_input_buffer()
-    except Exception as e:
-        print(f"Pico connection error: {e}")
-        state.pico = None
+    max_attempts = 3
+    for attempt in range(max_attempts):
+        try:
+            print(f"Connecting to Pico (attempt {attempt+1}/{max_attempts})")
+            state.pico = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=0.1)
+            time.sleep(2)  # Wait for initialization
+            state.pico.reset_input_buffer()
+            print("Pico connection established")
+            return
+        except Exception as e:
+            print(f"Pico connection error: {e}")
+            state.pico = None
+            if attempt < max_attempts - 1:
+                time.sleep(1)  # Wait before retrying
+    
+    print(f"Failed to connect to Pico after {max_attempts} attempts")
 
 def try_write(command: dict):
     """Invia un comando JSON al Pico."""
@@ -55,21 +64,26 @@ def handle_serial_message(message: str):
 
 def serial_reader():
     while True:
-        if state.pico and state.pico.is_open:
+        # Logica di riconnessione automatica
+        if not state.pico or not state.pico.is_open:
+            open_pico()
+            time.sleep(1)  # Aspetta prima di riprovare
+            continue       # Torna all'inizio del loop
+        
+        try:
+            while state.pico.in_waiting > 0:
+                raw = state.pico.readline().decode().strip()
+                if raw.startswith(("ANG|", "POS|")):
+                    handle_serial_message(raw)
+                elif raw:
+                    print(f"Received: {raw}")
+        except Exception as e:
+            print(f"Serial read error: {e}")
             try:
-                while state.pico.in_waiting > 0:
-                    raw = state.pico.readline().decode().strip()
-                    if raw.startswith(("ANG|", "POS|")):
-                        handle_serial_message(raw)
-                    elif raw:
-                        print(f"Received: {raw}")
-            except Exception as e:
-                print(f"Serial read error: {e}")
-                try:
-                    state.pico.close()
-                except:
-                    pass
-                state.pico = None
+                state.pico.close()
+            except:
+                pass
+            state.pico = None
         time.sleep(0.01)
 
 # Avvia il thread reader all'import

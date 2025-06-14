@@ -10,12 +10,12 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'modules'))
 
 # Inizializza tutti i moduli
 def initialize_modules():
-    # Inizializza LCD
+    # First open serial connection to Pico
+    serial_comms.open_pico()
+    
+    # Then initialize LCD
     lcd.initialize()
     lcd.set_status("SERVER START")
-    
-    # Apri connessione seriale con Pico
-    serial_comms.open_pico()
     
     # Avvia thread di monitoraggio Pico
     # threading.Thread(target=serial_comms.monitor_pico, daemon=True).start()

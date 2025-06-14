@@ -31,18 +31,23 @@ def set_speed(sp: int):
 
 def lcd_handler():
     while True:
-        line = ''
-        if state.pico and state.pico.is_open:
-            try: 
-                line = state.pico.readline().decode().strip()
-            except: 
-                pass
-        if line.startswith("STATUS|"):
-            set_status(line.split("|",1)[1])
-        elif line.startswith("SPEED|"):
-            try:
-                sp = int(line.split("|",1)[1])
-                set_speed(sp)
-            except: 
-                pass
-        time.sleep(0.01)
+        with state.lcd_lock:  # Add thread safety
+            if state.pico and state.pico.is_open:
+                try:
+                    line = state.pico.readline().decode().strip()
+                    if line.startswith("STATUS|"):
+                        set_status(line.split("|",1)[1])
+                    elif line.startswith("SPEED|"):
+                        try:
+                            sp = int(line.split("|",1)[1])
+                            set_speed(sp)
+                        except: 
+                            pass
+                except Exception as e:
+                    print(f"LCD read error: {e}")
+                    try:
+                        state.pico.close()
+                    except:
+                        pass
+                    state.pico = None
+            time.sleep(0.05)  # Reduced CPU usage
