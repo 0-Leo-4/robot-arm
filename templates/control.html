@@ -205,36 +205,25 @@
       axios.post('/api/start_sequence').then(r=>{ log('Sequenza avviata → '+r.data.status)});
     };
     
-    // Aggiornamento posizione corrente
-    function updatePosition() {
-      axios.get('/api/get_current_position')
+    function updateState() {
+      axios.get('/api/get_current_state')
         .then(response => {
           if (response.data.status === 'ok') {
             const pos = response.data.position;
-            document.getElementById('currentPosition').innerHTML = 
+            const ang = response.data.angles;
+            // Aggiorno posizione
+            document.getElementById('currentPosition').innerHTML =
               `X: ${pos.x.toFixed(2)}, Y: ${pos.y.toFixed(2)}, Z: ${pos.z.toFixed(2)}`;
+            // Aggiorno angoli
+            document.getElementById('currentAngles').innerHTML =
+              `J1: ${ang.j1.toFixed(2)}°, J2: ${ang.j2.toFixed(2)}°, J3: ${ang.j3.toFixed(2)}°`;
+          } else {
+            console.warn('API stato non OK:', response.data);
           }
         })
         .catch(error => {
-          log('Errore lettura posizione: ' + error.message);
+          console.error('Errore aggiornamento stato:', error.message);
         });
-    }
-
-    // Aggiornamento solo angoli correnti
-    function updateAngles() {
-      axios.get('/api/get_current_angles')
-      .then(response => {
-      if (response.data.status === 'ok') {
-        const ang = response.data.angles;
-        if (ang.j1 !== undefined && ang.j2 !== undefined && ang.j3 !== undefined) {
-        document.getElementById('currentAngles').innerHTML =
-          `J1: ${ang.j1.toFixed(2)}°, J2: ${ang.j2.toFixed(2)}°, J3: ${ang.j3.toFixed(2)}°`;
-        }
-      }
-      })
-      .catch(error => {
-      log('Errore lettura angoli: ' + error.message);
-      });
     }
     
     // Inizializzazioni aggiuntive

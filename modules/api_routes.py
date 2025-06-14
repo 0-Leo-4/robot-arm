@@ -209,23 +209,23 @@ def send_gcode():
     state.command_queue.extend(moves)
     return jsonify(status='ok', queued=len(moves))
 
-@bp.route('/api/get_current_angles', methods=['GET'])
-def get_current_angles():
+@bp.route('/api/get_current_state', methods=['GET'])
+def get_current_state():
     with state.lock:
+        # chiediamo sia gli encoder (angoli) sia la posizione
         serial_comms.try_write({"cmd": "getenc"})
         return jsonify({
-            'j1': state.angle_j1,
-            'j2': state.angle_j2,
-            'j3': state.angle_j3
-        })
-
-@bp.route('/api/get_current_position', methods=['GET'])
-def get_current_position():
-    with state.lock:
-        return jsonify({
-            'x': state.x,
-            'y': state.y,
-            'z': state.z
+            'status': 'ok',
+            'position': {
+                'x': state.x,
+                'y': state.y,
+                'z': state.z
+            },
+            'angles': {
+                'j1': state.angle_j1,
+                'j2': state.angle_j2,
+                'j3': state.angle_j3
+            }
         })
 
 # @bp.route('/api/move_to_object', methods=['POST'])
