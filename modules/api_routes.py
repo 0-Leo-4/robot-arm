@@ -211,9 +211,14 @@ def send_gcode():
 
 @bp.route('/api/get_current_state', methods=['GET'])
 def get_current_state():
+    # Manda due comandi al Pico: angoli e posizione
+    serial_comms.try_write({"cmd": "getenc"})
+    serial_comms.try_write({"cmd": "getpos"})
+    # Attendi brevemente che il reader thread consumi e aggiorni lo state
+    time.sleep(0.05)
+
+    # Ora torna il JSON unificato
     with state.lock:
-        # chiediamo sia gli encoder (angoli) sia la posizione
-        serial_comms.try_write({"cmd": "getenc"})
         return jsonify({
             'status': 'ok',
             'position': {

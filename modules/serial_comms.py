@@ -17,15 +17,18 @@ def open_pico():
         state.pico = None
 
 def try_write(command: dict):
+    """Invia un comando JSON al Pico."""
     if not state.pico or not state.pico.is_open:
         return
-    
     try:
         state.pico.write((json.dumps(command) + "\n").encode())
         state.pico.flush()
     except Exception as e:
         print(f"Write error: {e}")
-        state.pico.close()
+        try:
+            state.pico.close()
+        except:
+            pass
         state.pico = None
 
 def handle_serial_message(message: str):
@@ -39,7 +42,6 @@ def handle_serial_message(message: str):
                 state.angle_j3 = angles.get('j3', 0)
         except json.JSONDecodeError:
             print(f"Invalid ANG message: {message}")
-    
     # Gestione posizione
     elif message.startswith("POS|"):
         try:
@@ -57,11 +59,8 @@ def serial_reader():
             try:
                 while state.pico.in_waiting > 0:
                     raw = state.pico.readline().decode().strip()
-                    
-                    # Gestisci messaggi speciali
                     if raw.startswith(("ANG|", "POS|")):
                         handle_serial_message(raw)
-                    # Gestisci altri messaggi se necessario
                     elif raw:
                         print(f"Received: {raw}")
             except Exception as e:
