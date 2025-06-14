@@ -211,13 +211,7 @@ def send_gcode():
 
 @bp.route('/api/get_current_state', methods=['GET'])
 def get_current_state():
-    # Manda due comandi al Pico: angoli e posizione
-    serial_comms.try_write({"cmd": "getenc"})
-    serial_comms.try_write({"cmd": "getpos"})
-    # Attendi brevemente che il reader thread consumi e aggiorni lo state
-    time.sleep(0.05)
-
-    # Ora torna il JSON unificato
+    # Restituisce semplicemente l'ultimo stato noto
     with state.lock:
         return jsonify({
             'status': 'ok',
@@ -232,46 +226,3 @@ def get_current_state():
                 'j3': state.angle_j3
             }
         })
-
-# @bp.route('/api/move_to_object', methods=['POST'])
-# def move_to_object():
-#     """Muovi il robot verso un oggetto rilevato"""
-#     if state.emergency_active:
-#         return jsonify(status='blocked'), 403
-    
-#     data = request.json
-#     obj_id = data.get('object_id')
-    
-#     # Trova l'oggetto nelle rilevazioni correnti
-#     with state.lock:
-#         obj = next((d for d in state.detections if d['id'] == obj_id), None)
-    
-#     if not obj:
-#         return jsonify(status='error', error='Oggetto non trovato'), 404
-    
-#     try:
-#         # Converti coordinate visione → robot
-#         robot_x, robot_y = calibration.vision_to_robot_coordinates(obj['x'], obj['y'])
-        
-#         # Altezza di sicurezza (da configurare)
-#         safe_z = 50.0  
-        
-#         # Altezza di pick (da configurare)
-#         pick_z = 10.0   
-        
-#         # Sequenza di movimenti
-#         move_sequence = [
-#             {"axis": "BASE", "mm": robot_x, "speed_pct": 70},
-#             {"axis": "M1", "mm": robot_y, "speed_pct": 70},
-#             {"axis": "M2", "mm": safe_z, "speed_pct": 50},
-#             {"axis": "M2", "mm": pick_z, "speed_pct": 30},
-#             {"cmd": "grip", "angle": 80},  # Angolo chiusura
-#             {"axis": "M2", "mm": safe_z, "speed_pct": 50}
-#         ]
-        
-#         # Aggiungi alla coda di comandi
-#         state.command_queue.extend(move_sequence)
-#         return jsonify(status='pick_queued', moves=len(move_sequence))
-    
-#     except Exception as e:
-#         return jsonify(status='error', error=str(e)), 500

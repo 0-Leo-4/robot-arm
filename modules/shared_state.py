@@ -28,5 +28,7 @@ class SharedState:
         self.angle_j2 = 0
         self.angle_j3 = 0
         self.start_sequence = False
+        self.last_update = 0  # Timestamp ultimo aggiornamento
+        self.last_angle_update = 0  # Mantenuto per compatibilità
 
 state = SharedState()
