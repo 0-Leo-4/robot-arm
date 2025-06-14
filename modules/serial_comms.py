@@ -6,32 +6,38 @@ from .shared_state import state
 
 SERIAL_PORT = '/dev/ttyACM0'
 BAUDRATE = 115200
+CONNECTION_RETRY_DELAY = 2
 
 def open_pico():
-    max_attempts = 3
+    max_attempts = 5
     for attempt in range(max_attempts):
         try:
             print(f"Connecting to Pico (attempt {attempt+1}/{max_attempts})")
-            state.pico = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=0.1)
-            time.sleep(2)  # Wait for initialization
+            # Reduce timeout to prevent hangs
+            state.pico = serial.Serial(SERIAL_PORT, BAUDRATE, timeout=0.05)
+            time.sleep(1)  # Reduced initialization time
             state.pico.reset_input_buffer()
             print("Pico connection established")
-            return
+            return True
         except Exception as e:
             print(f"Pico connection error: {e}")
             state.pico = None
             if attempt < max_attempts - 1:
-                time.sleep(1)  # Wait before retrying
+                time.sleep(CONNECTION_RETRY_DELAY)
     
     print(f"Failed to connect to Pico after {max_attempts} attempts")
+    return False
 
 def try_write(command: dict):
     """Invia un comando JSON al Pico."""
     if not state.pico or not state.pico.is_open:
-        return
+        return False
+        
     try:
-        state.pico.write((json.dumps(command) + "\n").encode())
+        cmd_str = json.dumps(command) + "\n"
+        state.pico.write(cmd_str.encode())
         state.pico.flush()
+        return True
     except Exception as e:
         print(f"Write error: {e}")
         try:
@@ -39,6 +45,7 @@ def try_write(command: dict):
         except:
             pass
         state.pico = None
+        return False
 
 def handle_serial_message(message: str):
     # Gestione angoli
@@ -63,20 +70,30 @@ def handle_serial_message(message: str):
             print(f"Invalid POS message: {message}")
 
 def serial_reader():
+    last_reconnect = 0
     while True:
-        # Logica di riconnessione automatica
+        # Handle disconnections with backoff
         if not state.pico or not state.pico.is_open:
-            open_pico()
-            time.sleep(1)  # Aspetta prima di riprovare
-            continue       # Torna all'inizio del loop
+            current_time = time.time()
+            if current_time - last_reconnect > CONNECTION_RETRY_DELAY:
+                if open_pico():
+                    last_reconnect = current_time
+                else:
+                    time.sleep(CONNECTION_RETRY_DELAY)
+            continue
         
         try:
-            while state.pico.in_waiting > 0:
-                raw = state.pico.readline().decode().strip()
-                if raw.startswith(("ANG|", "POS|")):
-                    handle_serial_message(raw)
-                elif raw:
-                    print(f"Received: {raw}")
+            # Read with timeout
+            raw = state.pico.readline().decode().strip()
+            if not raw:
+                time.sleep(0.01)
+                continue
+                
+            if raw.startswith(("ANG|", "POS|")):
+                handle_serial_message(raw)
+            else:
+                print(f"Received: {raw}")
+                
         except Exception as e:
             print(f"Serial read error: {e}")
             try:
@@ -84,7 +101,6 @@ def serial_reader():
             except:
                 pass
             state.pico = None
-        time.sleep(0.01)
 
 # Avvia il thread reader all'import
 threading.Thread(target=serial_reader, daemon=True).start()

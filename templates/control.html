@@ -211,17 +211,31 @@
             .then(response => {
                 if (response.data.status === 'ok') {
                     const pos = response.data.position;
-                    const ang = response.data.angles;
                     document.getElementById('currentPosition').innerHTML = 
                         `X: ${pos.x.toFixed(2)}, Y: ${pos.y.toFixed(2)}, Z: ${pos.z.toFixed(2)}`;
-                    document.getElementById('currentAngles').innerHTML = 
-                        `J1: ${ang.j1.toFixed(2)}°, J2: ${ang.j2.toFixed(2)}°, J3: ${ang.j3.toFixed(2)}°`;
                 }
             })
             .catch(error => {
                 console.error('Error updating state:', error);
             });
     }
+
+    function updateAngles() {
+    axios.get('/api/get_current_angles')
+        .then(response => {
+            const ang = response.data;
+            document.getElementById('currentAngles').innerHTML = 
+                `J1: ${ang.j1.toFixed(2)}°, J2: ${ang.j2.toFixed(2)}°, J3: ${ang.j3.toFixed(2)}°`;
+            
+            // Aggiorna più frequentemente se i dati sono freschi
+            const nextUpdate = ang.fresh ? 100 : 500;
+            setTimeout(updateAngles, nextUpdate);
+        })
+        .catch(error => {
+            console.error('Angle update error:', error);
+            setTimeout(updateAngles, 1000);
+        });
+}
     
     // Inizializzazioni aggiuntive
     setInterval(updateState, 500);  // Aggiorna angoli ogni 500ms

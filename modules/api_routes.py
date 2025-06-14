@@ -225,12 +225,22 @@ def get_current_state():
                 'x': state.x,
                 'y': state.y,
                 'z': state.z
-            },
-            'angles': {
-                'j1': state.angle_j1,
-                'j2': state.angle_j2,
-                'j3': state.angle_j3
             }
+        })
+        
+@bp.route('/api/get_current_angles', methods=['GET'])
+def get_current_angles():
+    # Se i dati sono vecchi, richiedi un aggiornamento
+    if not state.angles_fresh:
+        serial_comms.try_write({"cmd": "getenc"})
+    
+    with state.lock:
+        return jsonify({
+            'j1': state.angle_j1,
+            'j2': state.angle_j2,
+            'j3': state.angle_j3,
+            'fresh': state.angles_fresh,
+            'timestamp': state.last_angle_update
         })
 
 # @bp.route('/api/move_to_object', methods=['POST'])
