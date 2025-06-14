@@ -209,35 +209,23 @@ def send_gcode():
     state.command_queue.extend(moves)
     return jsonify(status='ok', queued=len(moves))
 
-@bp.route('/api/get_current_position', methods=['GET'])
-def get_current_position():
-    """Ottieni la posizione corrente per il frontend"""
-    if state.pico and state.pico.is_open:
-        try:
-            serial_comms.try_write({"cmd": "getpos"})
-            time.sleep(0.5)
-            if state.pico.in_waiting:
-                response = state.pico.readline().decode().strip()
-                if response.startswith("POS|"):
-                    return jsonify(status='ok', position=json.loads(response[4:]))
-        except Exception as e:
-            return jsonify(status='error', error=str(e)), 500
-    return jsonify(status='error', error="Position not available"), 500
-
 @bp.route('/api/get_current_angles', methods=['GET'])
 def get_current_angles():
-    """Ottieni gli angoli correnti per il frontend"""
-    if state.pico and state.pico.is_open:
-        try:
-            serial_comms.try_write({"cmd": "getenc"})
-            time.sleep(0.5)
-            if state.pico.in_waiting:
-                response = state.pico.readline().decode().strip()
-                if response.startswith("ANG|"):
-                    return jsonify(status='ok', angles=json.loads(response[4:]))
-        except Exception as e:
-            return jsonify(status='error', error=str(e)), 500
-    return jsonify(status='error', error="Angles not available"), 500
+    with state.lock:
+        return jsonify({
+            'j1': state.angle_j1,
+            'j2': state.angle_j2,
+            'j3': state.angle_j3
+        })
+
+@bp.route('/api/get_current_position', methods=['GET'])
+def get_current_position():
+    with state.lock:
+        return jsonify({
+            'x': state.x,
+            'y': state.y,
+            'z': state.z
+        })
 
 # @bp.route('/api/move_to_object', methods=['POST'])
 # def move_to_object():

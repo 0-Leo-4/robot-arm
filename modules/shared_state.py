@@ -24,9 +24,9 @@ class SharedState:
         self.x = 0
         self.y = 0
         self.z = 0
-        self.angle_x = 0
-        self.angle_y = 0
-        self.angle_z = 0
+        self.angle_j1 = 0
+        self.angle_j2 = 0
+        self.angle_j3 = 0
         self.start_sequence = False
 
 state = SharedState()
