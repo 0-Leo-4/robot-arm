@@ -212,6 +212,7 @@ def send_gcode():
 @bp.route('/api/get_current_angles', methods=['GET'])
 def get_current_angles():
     with state.lock:
+        serial_comms.try_write({"cmd": "getenc"})
         return jsonify({
             'j1': state.angle_j1,
             'j2': state.angle_j2,
