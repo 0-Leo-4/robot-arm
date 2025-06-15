@@ -151,7 +151,7 @@ def interrupt_sequence():
     return jsonify(status='interrupted')
 
 @bp.route('/api/system_status', methods=['GET'])
-def system_status():
+def get_system_status():  # Nome modificato per evitare conflitto
     status = {
         'pico_connected': state.pico is not None and state.pico.is_open,
         'emergency_active': state.emergency_active,
@@ -321,3 +321,10 @@ def clear_errors():
     if state.pico and not state.pico.is_open:
         state.pico = None
     return jsonify(status='errors_cleared')
+
+@bp.route('/api/get_positions', methods=['GET'])
+def get_positions():
+    return jsonify({
+        'grip_offset': state.gripper_offset,
+        'drop_position': state.drop_position
+    })
