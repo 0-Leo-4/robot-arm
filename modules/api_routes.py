@@ -314,7 +314,6 @@ def get_current_state():
             'message': 'State lock timeout'
         }), 503
 
-
 @bp.route('/api/clear_errors', methods=['POST'])
 def clear_errors():
     # Reset degli errori senza influenzare lo stato operativo
