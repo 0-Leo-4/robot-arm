@@ -54,46 +54,45 @@ def capture_and_detect():
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
     
     while True:
-        if state.start_sequence:
-            t0 = time.time()
-            ret, frame = cap.read()
-            if not ret:
-                continue
+        t0 = time.time()
+        ret, frame = cap.read()
+        if not ret:
+            continue
 
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            _, mask = cv2.threshold(gray, 60, 255, cv2.THRESH_BINARY_INV)
-            blurred = cv2.GaussianBlur(mask, (9, 9), 2)
-            circles = cv2.HoughCircles(
-                blurred,
-                cv2.HOUGH_GRADIENT,
-                dp=1.2,
-                minDist=50,
-                param1=50,
-                param2=30,
-                minRadius=10,
-                maxRadius=100
-            )
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        _, mask = cv2.threshold(gray, 60, 255, cv2.THRESH_BINARY_INV)
+        blurred = cv2.GaussianBlur(mask, (9, 9), 2)
+        circles = cv2.HoughCircles(
+            blurred,
+            cv2.HOUGH_GRADIENT,
+            dp=1.2,
+            minDist=50,
+            param1=50,
+            param2=30,
+            minRadius=10,
+            maxRadius=100
+        )
 
-            ret2, jpeg = cv2.imencode('.jpg', frame)
-            if ret2:
-                state.latest_frame = jpeg.tobytes()
+        ret2, jpeg = cv2.imencode('.jpg', frame)
+        if ret2:
+            state.latest_frame = jpeg.tobytes()
 
-            curr = []
-            if circles is not None:
-                circles = np.uint16(np.around(circles))
-                for circle in circles[0, :]:
-                    x, y, r = circle
-                    if 0 <= y < gray.shape[0] and 0 <= x < gray.shape[1]:
-                        if gray[y, x] < 60:
-                            curr.append({"x": float(x), "y": float(y), "r": float(r)})
+        curr = []
+        if circles is not None:
+            circles = np.uint16(np.around(circles))
+            for circle in circles[0, :]:
+                x, y, r = circle
+                if 0 <= y < gray.shape[0] and 0 <= x < gray.shape[1]:
+                    if gray[y, x] < 60:
+                        curr.append({"x": float(x), "y": float(y), "r": float(r)})
 
-            tracked = assign_ids_to_circles(curr)
-            dt = time.time() - t0
-            if dt > 0:
-                state.fps = round(1.0 / dt, 1)
+        tracked = assign_ids_to_circles(curr)
+        dt = time.time() - t0
+        if dt > 0:
+            state.fps = round(1.0 / dt, 1)
 
-            with state.lock:
-                state.detections = tracked
+        with state.lock:
+            state.detections = tracked
 
-            state.start_sequence = False
-            time.sleep(max(0, 0.1 - (time.time() - t0)))
+        state.start_sequence = False
+        time.sleep(max(0, 0.1 - (time.time() - t0)))
