@@ -314,17 +314,6 @@ def get_current_state():
             'message': 'State lock timeout'
         }), 503
 
-# --- Nuove API per gestione errori ---
-@bp.route('/api/system_status', methods=['GET'])
-def system_status():
-    status = {
-        'pico_connected': state.pico is not None and state.pico.is_open,
-        'emergency_active': state.emergency_active,
-        'command_queue_length': len(state.command_queue),
-        'last_update': state.last_update,
-        'fps': state.fps
-    }
-    return jsonify(status)
 
 @bp.route('/api/clear_errors', methods=['POST'])
 def clear_errors():
