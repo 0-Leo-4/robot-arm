@@ -6,6 +6,14 @@ import math
 from scipy.optimize import linear_sum_assignment
 from .shared_state import state
 
+# Parametri di calibrazione (da impostare con misurazioni reali)
+# Questi valori devono essere misurati per il tuo setup specifico
+CALIBRATION_SCALE_X = 0.25  # mm per pixel in X
+CALIBRATION_SCALE_Y = 0.25  # mm per pixel in Y
+CALIBRATION_OFFSET_X = -50  # mm offset in X
+CALIBRATION_OFFSET_Y = -30  # mm offset in Y
+
+
 def assign_ids_to_circles(new_circles):
     if not state.tracked_circles:
         results = []
@@ -73,9 +81,11 @@ def capture_and_detect():
             maxRadius=100
         )
 
-        ret2, jpeg = cv2.imencode('.jpg', frame)
-        if ret2:
-            state.latest_frame = jpeg.tobytes()
+        # Salva frame solo se necessario
+        if state.sequence_running or state.start_sequence:
+            ret2, jpeg = cv2.imencode('.jpg', frame)
+            if ret2:
+                state.latest_frame = jpeg.tobytes()
 
         curr = []
         if circles is not None:
@@ -84,7 +94,16 @@ def capture_and_detect():
                 x, y, r = circle
                 if 0 <= y < gray.shape[0] and 0 <= x < gray.shape[1]:
                     if gray[y, x] < 60:
-                        curr.append({"x": float(x), "y": float(y), "r": float(r)})
+                        # Converti coordinate immagine -> robot
+                        x_robot = x * CALIBRATION_SCALE_X + CALIBRATION_OFFSET_X
+                        y_robot = y * CALIBRATION_SCALE_Y + CALIBRATION_OFFSET_Y
+                        curr.append({
+                            "x_img": float(x),
+                            "y_img": float(y),
+                            "r_img": float(r),
+                            "x_robot": x_robot,
+                            "y_robot": y_robot
+                        })
 
         tracked = assign_ids_to_circles(curr)
         dt = time.time() - t0
@@ -94,5 +113,9 @@ def capture_and_detect():
         with state.lock:
             state.detections = tracked
 
-        state.start_sequence = False
-        time.sleep(max(0, 0.1 - (time.time() - t0)))
+        # Solo se stiamo eseguendo una sequenza
+        if state.start_sequence:
+            state.start_sequence = False
+            time.sleep(0.1)
+        else:
+            time.sleep(max(0, 0.1 - (time.time() - t0)))

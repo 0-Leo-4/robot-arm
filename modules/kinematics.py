@@ -29,3 +29,27 @@ def forward_kinematics(angles):
     z = z_plane
     
     return x, y, z
+
+def inverse_kinematics(x, y, z):
+    """
+    Calcola gli angoli dei giunti per una posizione cartesiana specifica
+    Restituisce: [theta1, theta2, theta3] in gradi
+    """
+    # Calcola angolo base (rotazione attorno a Z)
+    theta1 = math.degrees(math.atan2(y, x))
+    
+    # Calcola distanza nel piano X-Y
+    r = math.sqrt(x**2 + y**2)
+    
+    # Calcola distanza euclidea nel piano verticale
+    d = math.sqrt(r**2 + z**2)
+    
+    # Legge dei coseni per triangoli
+    alpha = math.acos((L1**2 + d**2 - L2**2) / (2 * L1 * d))
+    beta = math.acos((L1**2 + L2**2 - d**2) / (2 * L1 * L2))
+    
+    # Calcola angoli dei giunti
+    theta2 = math.degrees(math.atan2(z, r) + alpha)
+    theta3 = math.degrees(beta - math.pi)  # -π per estensione completa
+    
+    return [theta1, theta2, theta3]

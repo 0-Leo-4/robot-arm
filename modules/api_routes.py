@@ -116,12 +116,10 @@ def homing():
     if state.emergency_active:
         return jsonify(status='blocked'), 403
     
-    # Implementa la routine di homing sul Raspberry Pi
     try:
-        target_angles = [10.0, 5.0, 0.0]  # Angoli di home per BASE, M1, M2
-        tolerance = 1.0  # Gradi di tolleranza
+        target_angles = state.home_angles
+        tolerance = 1.0
         
-        # Per ogni giunto
         for i, axis in enumerate(['BASE', 'M1', 'M2']):
             while True:
                 with state.lock:
@@ -131,22 +129,39 @@ def homing():
                 if abs(diff) < tolerance:
                     break
                     
-                # Calcola la direzione
                 direction = 1 if diff > 0 else -1
-                
-                # Invia comando di movimento
                 serial_comms.try_write({
                     'axis': axis,
-                    'mm': 0.1 * direction,  # Piccolo incremento
-                    'speed_pct': 30  # Velocità ridotta
+                    'mm': 0.1 * direction,
+                    'speed_pct': 30
                 })
-                
-                time.sleep(0.1)  # Breve pausa
+                time.sleep(0.1)
         
+        # Open gripper after homing
+        serial_comms.try_write({'cmd': 'grip', 'angle': 0})
+        state.homing_done = True
         return jsonify(status='homed')
     
     except Exception as e:
         return jsonify(status='error', error=str(e)), 500
+
+@bp.route('/api/interrupt_sequence', methods=['POST'])
+def interrupt_sequence():
+    state.sequence_interrupt = True
+    return jsonify(status='interrupted')
+
+@bp.route('/api/system_status', methods=['GET'])
+def system_status():
+    status = {
+        'pico_connected': state.pico is not None and state.pico.is_open,
+        'emergency_active': state.emergency_active,
+        'command_queue_length': len(state.command_queue),
+        'last_update': state.last_update,
+        'fps': state.fps,
+        'homing_done': state.homing_done,
+        'sequence_running': state.sequence_running
+    }
+    return jsonify(status)
 
 @bp.route('/api/stop', methods=['POST'])
 def stop():

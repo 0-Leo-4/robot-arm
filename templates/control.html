@@ -5,8 +5,6 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Robot Control</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="/static/styles.css">
-  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <style>
     body, .bg-dark { background-color: #181a1b !important; }
     .card, .form-range, .log-area, .btn, .form-control {
@@ -18,6 +16,7 @@
     .btn-warning { background-color: #ffc107 !important; border-color: #ffc107 !important; color: #181a1b !important; }
     .btn-secondary { background-color: #6c757d !important; border-color: #6c757d !important; }
     .btn-danger { background-color: #dc3545 !important; border-color: #dc3545 !important; }
+    .btn-interrupt { background-color: #ff6b00 !important; border-color: #ff6b00 !important; color: white !important; }
     .btn-outline-primary { border-color: #0d6efd !important; color: #0d6efd !important; }
     .btn-outline-danger { border-color: #dc3545 !important; color: #dc3545 !important; }
     .btn-outline-primary:hover, .btn-outline-primary:active { background-color: #0d6efd !important; color: #fff !important; }
@@ -27,7 +26,6 @@
     .card-header { background-color: #23272b !important; border-bottom: 1px solid #343a40 !important; }
     .log-area { border-radius: 4px; }
     .status-badge { min-width: 120px; }
-    
     .position-display {
       background: #2c3034;
       padding: 10px;
@@ -45,100 +43,108 @@
       align-items: center;
       gap: 10px;
     }
+    .control-section {
+      margin-bottom: 20px;
+    }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 </head>
 <body class="bg-dark">
   <div class="container py-4">
-    <h1 class="mb-2">
-      Robot Control 
-      <span id="picoStatus" class="badge bg-success ms-2 status-badge">Pico: Connesso</span>
-    </h1>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h1 class="mb-0">Robot Control</h1>
+      <div>
+        <span id="picoStatus" class="badge bg-success status-badge">Pico: Connesso</span>
+        <span id="systemStatus" class="badge bg-info status-badge ms-2">Sistema: Pronto</span>
+      </div>
+    </div>
 
-    <!-- Settings -->
-    <div class="row mb-4">
-      <div class="col-lg-7 mb-3 mb-lg-0">
-        <div class="card bg-dark text-light h-100">
+    <div class="row">
+      <!-- Left Column - Settings and Position -->
+      <div class="col-md-6">
+        <div class="card bg-dark text-light mb-4">
           <div class="card-header">Settings</div>
           <div class="card-body">
-            <div class="mb-2">
+            <div class="d-grid gap-2 d-md-flex">
               <button id="btnRebootPi" class="btn btn-info me-2 mb-2">Reboot Pi5</button>
               <button id="btnRebootPico" class="btn btn-info mb-2">Reboot Pico</button>
+              <button id="btnGitPull" class="btn btn-info mb-2">Pull Updates</button>
             </div>
-            <div class="mb-2">
+            <div class="d-grid gap-2 d-md-flex">
               <button id="btnDiscPico" class="btn btn-secondary me-2 mb-2">Disconnect Pico</button>
               <button id="btnConnPico" class="btn btn-secondary mb-2">Reconnect Pico</button>
             </div>
-            <div>
-              <button id="btnGitPull" class="btn btn-info">Pull Updates</button>
-            </div>
           </div>
         </div>
-      </div>
-      <div class="col-lg-5">
-        <div class="card h-100 bg-dark text-light">
+
+        <div class="card bg-dark text-light mb-4">
           <div class="card-header">Posizione Corrente</div>
-          <div class="card-body d-flex align-items-center justify-content-center flex-column">
-            <div id="currentPosition" class="position-display w-100 text-center mb-2">
-              X: {{ x|default('--') }}, Y: {{ y|default('--') }}, Z: {{ z|default('--') }}
+          <div class="card-body">
+            <div id="currentPosition" class="position-display w-100 text-center mb-3">
+              X: 0.00, Y: 0.00, Z: 0.00
             </div>
             <div id="currentAngles" class="position-display w-100 text-center">
-              J1: {{ angle_j1|default('--') }}°, J2: {{ angle_j2|default('--') }}°, J3: {{ angle_j3|default('--') }}°
+              J1: 0.00°, J2: 0.00°, J3: 0.00°
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column - Controls -->
+      <div class="col-md-6">
+        <div class="card bg-dark text-light mb-4">
+          <div class="card-header">Controlli</div>
+          <div class="card-body">
+            <div class="control-section">
+              <label>Velocità: <span id="speedVal">100%</span></label>
+              <input type="range" id="speedRange" min="1" max="100" step="1" value="100" class="form-range mb-4">
+            </div>
+
+            <div class="d-flex flex-wrap gap-2 mb-3">
+              <button id="btnStop" class="btn btn-danger">STOP</button>
+              <button id="btnReset" class="btn btn-warning">RESET</button>
+              <button id="btnHoming" class="btn btn-warning">Homing</button>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2 mb-3">
+              <button id="btnStartSequence" class="btn btn-info">Avvia Sequenza</button>
+              <button id="btnInterrupt" class="btn btn-interrupt">Interrompi Sequenza</button>
+            </div>
+
+            <div class="grip-control d-flex justify-content-center">
+              <button id="btnOpen" class="btn btn-secondary me-2">Open Grip</button>
+              <button id="btnClose" class="btn btn-secondary">Close Grip</button>
+            </div>
+
+            <div class="mt-4 d-flex justify-content-center">
+              <a href="/video" target="_blank" class="btn btn-outline-primary me-2">Video</a>
+              <a href="/manual_gcode" target="_blank" class="btn btn-outline-primary">Manual G-code</a>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Speed Slider & Video/G-code Buttons -->
-    <div class="row mb-3">
-      <div class="col-lg-7 mb-2 mb-lg-0">
-        <div class="d-flex align-items-center h-100">
-          <div class="flex-grow-1">
-            <label>Speed: <span id="speedVal">100%</span></label>
-            <input type="range" id="speedRange" min="1" max="100" step="1" value="100" class="form-range">
-          </div>
-        </div>
-      </div>
-      <div class="col-lg-5 d-flex align-items-center justify-content-center" style="gap: 10px;">
-        <a href="/video" target="_blank" class="btn btn-info w-100 w-lg-auto" style="max-width: 250px;">Video</a>
-        <a href="/manual_gcode" target="_blank" class="btn btn-outline-primary w-100 w-lg-auto" style="max-width: 250px;">Manual G-code</a>
-      </div>
-    </div>
-
-    <!-- Homing & Grip -->
-    <div class="mb-3 d-flex align-items-center flex-wrap" style="gap: 12px; max-width: 100%;">
-      <button id="btnStop" class="btn btn-danger me-2">STOP</button>
-      <button id="btnReset" class="btn btn-warning me-2">RESET</button>
-      <button id="btnStartSequence" class="btn btn-info me-2">Avvia Sequenza</button>
-      <button id="btnHoming" class="btn btn-warning me-2">Homing</button>
-      <div class="grip-control" style="margin-bottom: 0;">
-        <button id="btnOpen" class="btn btn-secondary me-2">Open Grip</button>
-        <button id="btnClose" class="btn btn-secondary">Close Grip</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Log -->
-  <div class="d-flex justify-content-center">
-    <div class="card" style="width: 100%; max-width: 1200px; margin: 0 16px;">
-      <div class="card-header text-center">
-        Log
-      </div>
+    <!-- Log Section -->
+    <div class="card bg-dark text-light">
+      <div class="card-header text-center">Log</div>
       <div class="card-body p-2">
-        <pre id="log" class="bg-dark text-light p-2 log-area"></pre>
+        <pre id="log" class="bg-dark text-light p-3 log-area" style="height: 200px; overflow-y: auto;"></pre>
       </div>
     </div>
   </div>
 
-  <!-- Main Script -->
   <script>
     const logEl = document.getElementById('log');
+    const systemStatusEl = document.getElementById('systemStatus');
+    
     function log(msg) {
       logEl.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + logEl.textContent;
     }
-    function setUI(on) {
-      document.querySelectorAll('button, input').forEach(el => el.disabled = !on);
-    }
+    
+    // Initialize UI
+    log('Sistema inizializzato');
+    log('Eseguire Homing per abilitare la sequenza');
 
     // Pico status badge
     const statusEl = document.getElementById('picoStatus');
@@ -147,21 +153,58 @@
         .then(r => {
           const ok = r.data.connected;
           statusEl.textContent = ok ? 'Pico: Connesso' : 'Pico: Disconnesso';
-          statusEl.className = ok ? 'badge bg-success ms-2 status-badge' : 'badge bg-danger ms-2 status-badge';
+          statusEl.className = ok ? 'badge bg-success status-badge' : 'badge bg-danger status-badge';
         })
         .catch(_ => {
           statusEl.textContent = 'Pico: Errore';
-          statusEl.className = 'badge bg-warning ms-2 status-badge';
+          statusEl.className = 'badge bg-warning status-badge';
         });
     }
     
+    // Update system status
+    function updateSystemStatus() {
+      axios.get('/api/system_status')
+        .then(response => {
+          const status = response.data;
+          
+          // Update status badge
+          if (status.emergency_active) {
+            systemStatusEl.textContent = 'Sistema: EMERGENZA';
+            systemStatusEl.className = 'badge bg-danger status-badge ms-2';
+          } else if (status.sequence_running) {
+            systemStatusEl.textContent = 'Sistema: Sequenza in corso';
+            systemStatusEl.className = 'badge bg-warning status-badge ms-2';
+          } else if (status.homing_done) {
+            systemStatusEl.textContent = 'Sistema: Pronto';
+            systemStatusEl.className = 'badge bg-success status-badge ms-2';
+          } else {
+            systemStatusEl.textContent = 'Sistema: Homing necessario';
+            systemStatusEl.className = 'badge bg-info status-badge ms-2';
+          }
+          
+          // Update button states
+          document.getElementById('btnStartSequence').disabled = 
+            !status.homing_done || status.sequence_running || status.emergency_active;
+          document.getElementById('btnInterrupt').disabled = 
+            !status.sequence_running;
+        });
+    }
+    
+    // Initial updates
     updatePicoStatus();
+    updateSystemStatus();
+    
+    // Set intervals for periodic updates
     setInterval(updatePicoStatus, 5000);
+    setInterval(updateSystemStatus, 1000);
 
     // Speed control
     const spR = document.getElementById('speedRange'), spV = document.getElementById('speedVal');
     spR.oninput = () => { spV.textContent = spR.value + '%'; };
-    spR.onchange = () => { axios.post('/api/set_speed', { speed_pct: +spR.value }); };
+    spR.onchange = () => { 
+      axios.post('/api/set_speed', { speed_pct: +spR.value })
+        .then(() => log(`Velocità impostata a ${spR.value}%`)); 
+    };
 
     // Reboot/Connect buttons
     document.getElementById('btnRebootPi').onclick = () => {
@@ -170,34 +213,75 @@
     document.getElementById('btnRebootPico').onclick = () => {
       if(confirm('Reboot Pico?')) axios.post('/api/reboot_pico').then(r=>log('Pico → '+r.data.status));
     };
-    document.getElementById('btnDiscPico').onclick = () => { axios.post('/api/disconnect_pico').then(r=>{log('Pico → '+r.data.status); updatePicoStatus();}); };
-    document.getElementById('btnConnPico').onclick = () => { axios.post('/api/reconnect_pico').then(r=>{log('Pico → '+r.data.status); updatePicoStatus();}); };
+    document.getElementById('btnDiscPico').onclick = () => { 
+      axios.post('/api/disconnect_pico').then(r=>{
+        log('Pico → '+r.data.status); 
+        updatePicoStatus();
+      }); 
+    };
+    document.getElementById('btnConnPico').onclick = () => { 
+      axios.post('/api/reconnect_pico').then(r=>{
+        log('Pico → '+r.data.status); 
+        updatePicoStatus();
+      }); 
+    };
     document.getElementById('btnGitPull').onclick = () => {
-      if(confirm('Git pull & restart?')) axios.post('/api/git_pull').then(r=>{log('Git → '+r.data.status); log(r.data.output);});
+      if(confirm('Git pull & restart?')) axios.post('/api/git_pull').then(r=>{
+        log('Git → '+r.data.status); 
+        log(r.data.output);
+      });
     };
 
     // Homing & Grip
-    document.getElementById('btnHoming').onclick = () => axios.post('/api/homing').then(r=>log('Homing → '+r.data.status));
-    document.getElementById('btnOpen').onclick   = () => axios.post('/api/upload',{commands:[{cmd:'grip',angle:0}]}).then(()=>axios.post('/api/run_queue')).then(()=>log('Grip open'));
-    document.getElementById('btnClose').onclick  = () => axios.post('/api/upload',{commands:[{cmd:'grip',angle:84}]}).then(()=>axios.post('/api/run_queue')).then(()=>log('Grip close'));
+    document.getElementById('btnHoming').onclick = () => {
+      axios.post('/api/homing').then(r=>{
+        log('Homing → '+r.data.status);
+        log('Homing completato! La sequenza è ora disponibile');
+      });
+    };
+    document.getElementById('btnOpen').onclick   = () => {
+      axios.post('/api/upload',{commands:[{cmd:'grip',angle:0}]})
+        .then(()=>axios.post('/api/run_queue'))
+        .then(()=>log('Grip aperto'));
+    };
+    document.getElementById('btnClose').onclick  = () => {
+      axios.post('/api/upload',{commands:[{cmd:'grip',angle:84}]})
+        .then(()=>axios.post('/api/run_queue'))
+        .then(()=>log('Grip chiuso'));
+    };
+
+    // Interruzione sequenza
+    document.getElementById('btnInterrupt').onclick = () => {
+      axios.post('/api/interrupt_sequence').then(r=>{
+        log('Sequenza interrotta → '+r.data.status);
+        log('Ritorno alla posizione home...');
+      });
+    };
 
     // Emergency & Reset & Start Sequence
     document.getElementById('btnStop').onclick = () => {
       axios.post('/api/stop').then(r=>{
-      log('STOP → '+r.data.status);
-      setUI(false);
-      // Settings buttons remain enabled after STOP
-      document.getElementById('btnReset').disabled = false;
-      document.getElementById('btnGitPull').disabled = false;
-      document.getElementById('btnRebootPi').disabled = false;
-      document.getElementById('btnRebootPico').disabled = false;
-      document.getElementById('btnDiscPico').disabled = false;
-      document.getElementById('speedRange').disabled = false;
+        log('EMERGENCY STOP! → '+r.data.status);
+        document.querySelectorAll('button:not(#btnReset)').forEach(btn => {
+          btn.disabled = true;
+        });
+      });
+    };
+    
+    document.getElementById('btnReset').onclick = () => {
+      axios.post('/api/reset').then(r=>{
+        log('Reset allarmi → '+r.data.status);
+        document.querySelectorAll('button').forEach(btn => {
+          btn.disabled = false;
+        });
       });
     };
     
     document.getElementById('btnStartSequence').onclick = () => {
-      axios.post('/api/start_sequence').then(r=>{ log('Sequenza avviata → '+r.data.status)});
+      axios.post('/api/start_sequence').then(r=>{ 
+        log('Sequenza avviata → '+r.data.status);
+        log('Acquisizione immagine in corso...');
+      });
     };
     
     function updateState() {
@@ -219,9 +303,6 @@
     
     // Aggiorna lo stato ogni 500ms
     setInterval(updateState, 500);
-
-    // Inizializza UI
-    setUI(true);
     updateState();
   </script>
 </body>

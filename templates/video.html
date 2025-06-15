@@ -61,6 +61,10 @@
       text-align: left;
     }
     canvas#chart { background: #1e1e1e; border-radius: 8px; }
+    .coordinates-info {
+      background: #2c3034; padding: 10px; border-radius: 5px;
+      margin-top: 10px; font-family: monospace;
+    }
   </style>
 </head>
 <body>
@@ -70,20 +74,45 @@
         <img src="/video_feed" id="video-image" alt="Video Feed">
         <canvas id="video-canvas"></canvas>
       </div>
+      <div class="fps-label-outside">
+        FPS: <span id="fps-display">0</span> | 
+        Target: <span id="target-display">Nessuno</span>
+      </div>
     </div>
     <div class="stats-section">
       <div class="stat-box">
-        <h3 style="margin-top:24px;">Detected Pieces - Coordinates</h3>
+        <h3>Pezzi Rilevati</h3>
         <table id="pieces-table">
           <thead>
-            <tr><th>Piece</th><th>X</th><th>Y</th></tr>
+            <tr>
+              <th>ID</th>
+              <th>X_img</th>
+              <th>Y_img</th>
+              <th>X_robot</th>
+              <th>Y_robot</th>
+            </tr>
           </thead>
           <tbody id="table-body"></tbody>
         </table>
+        
+        <div class="coordinates-info mt-3">
+          <strong>Punto di presa:</strong>
+          <div>X: <span id="grip-x">0.0</span> mm</div>
+          <div>Y: <span id="grip-y">0.0</span> mm</div>
+          <div>Z: <span id="grip-z">10.0</span> mm</div>
+        </div>
       </div>
+      
       <div class="stat-box">
-        <h3>Live Chart</h3>
+        <h3>Posizioni</h3>
         <canvas id="chart" width="300" height="200"></canvas>
+        
+        <div class="coordinates-info mt-3">
+          <strong>Punto di rilascio:</strong>
+          <div>X: <span id="drop-x">100.0</span> mm</div>
+          <div>Y: <span id="drop-y">0.0</span> mm</div>
+          <div>Z: <span id="drop-z">0.0</span> mm</div>
+        </div>
       </div>
     </div>
   </div>
@@ -93,18 +122,24 @@
     const canvas = document.getElementById('video-canvas');
     const ctx = canvas.getContext('2d');
     const tableBody = document.getElementById('table-body');
+    const fpsDisplay = document.getElementById('fps-display');
+    const targetDisplay = document.getElementById('target-display');
 
     // Initialize Chart.js scatter chart
     const chartCtx = document.getElementById('chart').getContext('2d');
     const scatterChart = new Chart(chartCtx, {
       type: 'scatter',
-      data: { datasets: [{ label: 'Detected Pieces', backgroundColor: '#4bc0c0', data: [] }] },
+      data: { 
+        datasets: [
+          { label: 'Pezzi rilevati', backgroundColor: '#4bc0c0', data: [] },
+          { label: 'Target', backgroundColor: '#ff6384', data: [] }
+        ] 
+      },
       options: {
         scales: {
           x: { title: { display: true, text: 'X (px)' }, beginAtZero: true },
           y: { title: { display: true, text: 'Y (px)' }, beginAtZero: true }
-        },
-        plugins: { legend: { display: false } }
+        }
       }
     });
 
@@ -124,52 +159,117 @@
     window.addEventListener('resize', updateCanvasSize);
 
     async function updateDetections() {
-      const res = await fetch('/api/detections');
-      const { detections } = await res.json();
+      try {
+        const res = await fetch('/api/detections');
+        const { detections, fps } = await res.json();
+        
+        // Aggiorna FPS
+        fpsDisplay.textContent = fps || '0';
 
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Compute ratio and offsets for object-fit: contain
-      const ratio = Math.min(canvas.width / videoImage.naturalWidth, canvas.height / videoImage.naturalHeight);
-      const vidW = videoImage.naturalWidth * ratio;
-      const vidH = videoImage.naturalHeight * ratio;
-      const offsetX = (canvas.width - vidW) / 2;
-      const offsetY = (canvas.height - vidH) / 2;
+        // Compute ratio and offsets for object-fit: contain
+        const ratio = Math.min(canvas.width / videoImage.naturalWidth, canvas.height / videoImage.naturalHeight);
+        const vidW = videoImage.naturalWidth * ratio;
+        const vidH = videoImage.naturalHeight * ratio;
+        const offsetX = (canvas.width - vidW) / 2;
+        const offsetY = (canvas.height - vidH) / 2;
 
-      ctx.strokeStyle = '#00ffff';
-      ctx.lineWidth = 2;
-      ctx.font = '16px Arial';
-      ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#00ffff';
+        ctx.lineWidth = 2;
+        ctx.font = '16px Arial';
+        ctx.fillStyle = '#ffffff';
 
-      detections.slice().sort((a, b) => a.x - b.x).forEach((det, idx) => {
-        const x = det.x * ratio + offsetX;
-        const y = det.y * ratio + offsetY;
-        const r = det.r * ratio;
-        ctx.beginPath();
-        ctx.arc(x, y, r, 0, 2 * Math.PI);
-        ctx.stroke();
-        ctx.fillText(`${idx + 1}`, x + r + 5, y - r - 5);
-      });
+        // Reset chart data
+        scatterChart.data.datasets[0].data = [];
+        scatterChart.data.datasets[1].data = [];
+        let targetFound = false;
 
-      updateTableAndChart(detections);
+        detections.slice().sort((a, b) => a.x_img - b.x_img).forEach((det, idx) => {
+          const x = det.x_img * ratio + offsetX;
+          const y = det.y_img * ratio + offsetY;
+          const r = det.r_img * ratio;
+          
+          // Disegna cerchio
+          ctx.beginPath();
+          ctx.arc(x, y, r, 0, 2 * Math.PI);
+          ctx.stroke();
+          
+          // Etichetta con ID
+          ctx.fillText(`${det.id}`, x + r + 5, y - r - 5);
+          
+          // Highlight target (ID 1)
+          if (det.id === 1) {
+            ctx.strokeStyle = '#ff0000';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(x, y, r + 5, 0, 2 * Math.PI);
+            ctx.stroke();
+            ctx.strokeStyle = '#00ffff';
+            ctx.lineWidth = 2;
+            
+            targetDisplay.textContent = `ID:1 (${det.x_robot.toFixed(1)}, ${det.y_robot.toFixed(1)})`;
+            targetFound = true;
+            
+            // Add to chart as target
+            scatterChart.data.datasets[1].data.push({ 
+              x: det.x_img, 
+              y: det.y_img 
+            });
+          }
+          
+          // Add to chart
+          scatterChart.data.datasets[0].data.push({ 
+            x: det.x_img, 
+            y: det.y_img 
+          });
+        });
+
+        if (!targetFound) {
+          targetDisplay.textContent = 'Nessuno';
+        }
+        
+        scatterChart.update();
+        updateTableAndChart(detections);
+      } catch (error) {
+        console.error('Error updating detections:', error);
+      }
     }
 
     function updateTableAndChart(detections) {
       tableBody.innerHTML = '';
-      scatterChart.data.datasets[0].data = [];
-      detections.slice().sort((a, b) => a.x - b.x).forEach((det, idx) => {
-        const label = idx + 1;
-        const xi = Math.round(det.x);
-        const yi = Math.round(det.y);
+      
+      detections.slice().sort((a, b) => a.x_img - b.x_img).forEach(det => {
         const row = document.createElement('tr');
-        row.innerHTML = `<td>${label}</td><td>${xi}</td><td>${yi}</td>`;
+        row.innerHTML = `
+          <td>${det.id}</td>
+          <td>${Math.round(det.x_img)}</td>
+          <td>${Math.round(det.y_img)}</td>
+          <td>${det.x_robot.toFixed(1)}</td>
+          <td>${det.y_robot.toFixed(1)}</td>
+        `;
         tableBody.appendChild(row);
-        scatterChart.data.datasets[0].data.push({ x: xi, y: yi });
       });
-      scatterChart.update();
     }
 
+    // Load grip and drop positions
+    function loadPositions() {
+      fetch('/api/get_positions')
+        .then(response => response.json())
+        .then(data => {
+          document.getElementById('grip-x').textContent = data.grip_offset[0];
+          document.getElementById('grip-y').textContent = data.grip_offset[1];
+          document.getElementById('grip-z').textContent = data.grip_offset[2];
+          document.getElementById('drop-x').textContent = data.drop_position[0];
+          document.getElementById('drop-y').textContent = data.drop_position[1];
+          document.getElementById('drop-z').textContent = data.drop_position[2];
+        });
+    }
+
+    // Initial setup
+    updateCanvasSize();
     setInterval(updateDetections, 100);
+    loadPositions();
   </script>
 </body>
 </html>

@@ -1,8 +1,10 @@
+# modules/shared_state.py
 import threading
 from gpiozero import OutputDevice
 
 class SharedState:
     def __init__(self):
+        # Existing state variables
         self.detections = []
         self.current_speed = 100
         self.emergency_active = False
@@ -27,7 +29,15 @@ class SharedState:
         self.angle_j2 = 0.0
         self.angle_j3 = 0.0
         self.start_sequence = False
-        self.last_update = 0  # Timestamp ultimo aggiornamento
-        self.fps = 0.0        # FPS visione
+        self.last_update = 0
+        self.fps = 0.0
+        
+        # New state variables for sequence control
+        self.homing_done = False
+        self.sequence_running = False
+        self.sequence_interrupt = False
+        self.gripper_offset = (0, 0, 10)  # (x_offset, y_offset, z_offset) in mm
+        self.drop_position = (100, 0, 0)   # Default drop position (x, y, z) in mm
+        self.home_angles = [10.0, 5.0, 0.0]  # Home angles for BASE, M1, M2
 
 state = SharedState()
