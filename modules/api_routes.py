@@ -151,9 +151,9 @@ def interrupt_sequence():
     return jsonify(status='interrupted')
 
 @bp.route('/api/system_status', methods=['GET'])
-def get_system_status():  # Nome modificato per evitare conflitto
+def get_system_status():
     status = {
-        'pico_connected': state.pico is not None and state.pico.is_open,
+        #'pico_connected': state.pico is not None and state.pico.is_open,
         'emergency_active': state.emergency_active,
         'command_queue_length': len(state.command_queue),
         'last_update': state.last_update,

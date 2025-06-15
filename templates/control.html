@@ -189,14 +189,6 @@
             !status.sequence_running;
         });
     }
-    
-    // Initial updates
-    updatePicoStatus();
-    updateSystemStatus();
-    
-    // Set intervals for periodic updates
-    setInterval(updatePicoStatus, 5000);
-    setInterval(updateSystemStatus, 1000);
 
     // Speed control
     const spR = document.getElementById('speedRange'), spV = document.getElementById('speedVal');
@@ -301,9 +293,16 @@
             });
     }
     
-    // Aggiorna lo stato ogni 500ms
-    setInterval(updateState, 500);
+    // Initial updates
+    updatePicoStatus();
+    updateSystemStatus();
     updateState();
+
+    // Set intervals for periodic updates
+    setInterval(updatePicoStatus, 5000);
+    setInterval(updateSystemStatus, 1000);
+    setInterval(updateState, 500);
+    
   </script>
 </body>
 </html>
