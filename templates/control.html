@@ -28,7 +28,6 @@
     .log-area { border-radius: 4px; }
     .status-badge { min-width: 120px; }
     
-    /* Aggiunte */
     .position-display {
       background: #2c3034;
       padding: 10px;
@@ -45,92 +44,88 @@
       display: flex;
       align-items: center;
       gap: 10px;
+    }
+  </style>
+</head>
+<body class="bg-dark">
+  <div class="container py-4">
+    <h1 class="mb-2">
+      Robot Control 
+      <span id="picoStatus" class="badge bg-success ms-2 status-badge">Pico: Connesso</span>
+    </h1>
 
-      </style>
-    </head>
-    <body class="bg-dark">
-      <div class="container py-4">
-        <h1 class="mb-2">
-          Robot Control 
-          <span id="picoStatus" class="badge bg-success ms-2 status-badge">Pico: Connesso</span>
-        </h1>
-
-        <!-- Settings -->
-        <div class="row mb-4">
-          <!-- Settings -->
-          <div class="col-lg-7 mb-3 mb-lg-0">
-            <div class="card bg-dark text-light h-100">
-              <div class="card-header">Settings</div>
-              <div class="card-body">
-                <div class="mb-2">
-                  <button id="btnRebootPi"   class="btn btn-info me-2 mb-2">Reboot Pi5</button>
-                  <button id="btnRebootPico" class="btn btn-info mb-2">Reboot Pico</button>
-                </div>
-                <div class="mb-2">
-                  <button id="btnDiscPico"   class="btn btn-secondary me-2 mb-2">Disconnect Pico</button>
-                  <button id="btnConnPico"   class="btn btn-secondary mb-2">Reconnect Pico</button>
-                </div>
-                <div>
-                  <button id="btnGitPull" class="btn btn-info">Pull Updates</button>
-                </div>
-              </div>
+    <!-- Settings -->
+    <div class="row mb-4">
+      <div class="col-lg-7 mb-3 mb-lg-0">
+        <div class="card bg-dark text-light h-100">
+          <div class="card-header">Settings</div>
+          <div class="card-body">
+            <div class="mb-2">
+              <button id="btnRebootPi" class="btn btn-info me-2 mb-2">Reboot Pi5</button>
+              <button id="btnRebootPico" class="btn btn-info mb-2">Reboot Pico</button>
             </div>
-          </div>
-          <!-- Posizione in tempo reale -->
-            <div class="col-lg-5">
-            <div class="card h-100 bg-dark text-light">
-              <div class="card-header">Posizione Corrente</div>
-              <div class="card-body d-flex align-items-center justify-content-center flex-column">
-              <div id="currentPosition" class="position-display w-100 text-center mb-2">
-                X: {{ x|default('--') }}, Y: {{ y|default('--') }}, Z: {{ z|default('--') }}
-              </div>
-              <div id="currentAngles" class="position-display w-100 text-center">
-                  J1: {{ angle_j1|default('--') }}°, J2: {{ angle_j2|default('--') }}°, J3: {{ angle_j3|default('--') }}°
-              </div>
-              </div>
+            <div class="mb-2">
+              <button id="btnDiscPico" class="btn btn-secondary me-2 mb-2">Disconnect Pico</button>
+              <button id="btnConnPico" class="btn btn-secondary mb-2">Reconnect Pico</button>
             </div>
+            <div>
+              <button id="btnGitPull" class="btn btn-info">Pull Updates</button>
             </div>
-        </div>
-
-        <!-- Speed Slider & Video/G-code Buttons -->
-        <div class="row mb-3">
-          <div class="col-lg-7 mb-2 mb-lg-0">
-            <div class="d-flex align-items-center h-100">
-              <div class="flex-grow-1">
-                <label>Speed: <span id="speedVal">100%</span></label>
-                <input type="range" id="speedRange" min="1" max="100" step="1" value="100" class="form-range">
-              </div>
-            </div>
-          </div>
-          <div class="col-lg-5 d-flex align-items-center justify-content-center" style="gap: 10px;">
-            <a href="/video" target="_blank" class="btn btn-info w-100 w-lg-auto" style="max-width: 250px;">Video</a>
-            <a href="/manual_gcode" target="_blank" class="btn btn-outline-primary w-100 w-lg-auto" style="max-width: 250px;">Manual G-code</a>
           </div>
         </div>
-
-        <!-- Homing & Grip -->
-        <div class="mb-3 d-flex align-items-center flex-wrap" style="gap: 12px; max-width: 100%;">
-          <button id="btnStop" class="btn btn-danger me-2">STOP</button>
-          <button id="btnReset" class="btn btn-warning me-2">RESET</button>
-          <button id="btnStartSequence" class="btn btn-info me-2">Avvia Sequenza</button>
-          <button id="btnHoming" class="btn btn-warning me-2">Homing</button>
-          <div class="grip-control" style="margin-bottom: 0;">
-            <button id="btnOpen" class="btn btn-secondary me-2">Open Grip</button>
-            <button id="btnClose" class="btn btn-secondary">Close Grip</button>
+      </div>
+      <div class="col-lg-5">
+        <div class="card h-100 bg-dark text-light">
+          <div class="card-header">Posizione Corrente</div>
+          <div class="card-body d-flex align-items-center justify-content-center flex-column">
+            <div id="currentPosition" class="position-display w-100 text-center mb-2">
+              X: {{ x|default('--') }}, Y: {{ y|default('--') }}, Z: {{ z|default('--') }}
+            </div>
+            <div id="currentAngles" class="position-display w-100 text-center">
+              J1: {{ angle_j1|default('--') }}°, J2: {{ angle_j2|default('--') }}°, J3: {{ angle_j3|default('--') }}°
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Log -->
-    <div class="d-flex justify-content-center">
-      <div class="card" style="width: 100%; max-width: 1200px; margin: 0 16px;">
-        <div class="card-header text-center">
-          Log
+    <!-- Speed Slider & Video/G-code Buttons -->
+    <div class="row mb-3">
+      <div class="col-lg-7 mb-2 mb-lg-0">
+        <div class="d-flex align-items-center h-100">
+          <div class="flex-grow-1">
+            <label>Speed: <span id="speedVal">100%</span></label>
+            <input type="range" id="speedRange" min="1" max="100" step="1" value="100" class="form-range">
+          </div>
         </div>
-        <div class="card-body p-2">
-          <pre id="log" class="bg-dark text-light p-2 log-area"></pre>
-        </div>
+      </div>
+      <div class="col-lg-5 d-flex align-items-center justify-content-center" style="gap: 10px;">
+        <a href="/video" target="_blank" class="btn btn-info w-100 w-lg-auto" style="max-width: 250px;">Video</a>
+        <a href="/manual_gcode" target="_blank" class="btn btn-outline-primary w-100 w-lg-auto" style="max-width: 250px;">Manual G-code</a>
+      </div>
+    </div>
+
+    <!-- Homing & Grip -->
+    <div class="mb-3 d-flex align-items-center flex-wrap" style="gap: 12px; max-width: 100%;">
+      <button id="btnStop" class="btn btn-danger me-2">STOP</button>
+      <button id="btnReset" class="btn btn-warning me-2">RESET</button>
+      <button id="btnStartSequence" class="btn btn-info me-2">Avvia Sequenza</button>
+      <button id="btnHoming" class="btn btn-warning me-2">Homing</button>
+      <div class="grip-control" style="margin-bottom: 0;">
+        <button id="btnOpen" class="btn btn-secondary me-2">Open Grip</button>
+        <button id="btnClose" class="btn btn-secondary">Close Grip</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="d-flex justify-content-center">
+    <div class="card" style="width: 100%; max-width: 1200px; margin: 0 16px;">
+      <div class="card-header text-center">
+        Log
+      </div>
+      <div class="card-body p-2">
+        <pre id="log" class="bg-dark text-light p-2 log-area"></pre>
       </div>
     </div>
   </div>
@@ -206,7 +201,6 @@
     };
     
     function updateState() {
-        // FIXED: Correct endpoint
         axios.get('/api/get_current_state')
             .then(response => {
                 if (response.data.status === 'ok') {
@@ -219,16 +213,16 @@
                 }
             })
             .catch(error => {
-                console.error('Error updating state:', error);
+                console.error('State error:', error);
             });
     }
     
-    // Inizializzazioni aggiuntive
-    setInterval(updateState, 500);  // Aggiorna angoli ogni 500ms
+    // Aggiorna lo stato ogni 500ms
+    setInterval(updateState, 500);
 
     // Inizializza UI
     setUI(true);
-    updateState();  // Prima lettura angoli
+    updateState();
   </script>
 </body>
 </html>

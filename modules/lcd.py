@@ -31,7 +31,7 @@ def set_speed(sp: int):
 
 def lcd_handler():
     while True:
-        with state.lcd_lock:  # Add thread safety
+        with state.lcd_lock:
             if state.pico and state.pico.is_open:
                 try:
                     line = state.pico.readline().decode().strip()
@@ -50,4 +50,4 @@ def lcd_handler():
                     except:
                         pass
                     state.pico = None
-            time.sleep(0.05)  # Reduced CPU usage
+            time.sleep(0.05)

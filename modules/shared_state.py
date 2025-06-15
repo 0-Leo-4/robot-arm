@@ -1,7 +1,6 @@
 import threading
 from gpiozero import OutputDevice
 
-
 class SharedState:
     def __init__(self):
         self.detections = []
@@ -21,14 +20,14 @@ class SharedState:
         self.relay = OutputDevice(17, active_high=False, initial_value=True)
         self.pico = None
         self.conveyor_speed = 0
-        self.x = 0
-        self.y = 0
-        self.z = 0
-        self.angle_j1 = 0
-        self.angle_j2 = 0
-        self.angle_j3 = 0
+        self.x = 0.0
+        self.y = 0.0
+        self.z = 0.0
+        self.angle_j1 = 0.0
+        self.angle_j2 = 0.0
+        self.angle_j3 = 0.0
         self.start_sequence = False
         self.last_update = 0  # Timestamp ultimo aggiornamento
-        self.last_angle_update = 0  # Mantenuto per compatibilità
+        self.fps = 0.0        # FPS visione
 
 state = SharedState()

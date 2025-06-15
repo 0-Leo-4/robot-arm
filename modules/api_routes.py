@@ -22,9 +22,9 @@ def index():
             x = state.x,
             y = state.y,
             z = state.z,
-            j1 = state.angle_j1,
-            j2 = state.angle_j2,
-            j3 = state.angle_j3
+            angle_j1 = state.angle_j1,
+            angle_j2 = state.angle_j2,
+            angle_j3 = state.angle_j3
         )
 
 @bp.route('/video')
@@ -78,11 +78,7 @@ def frame():
 
 @bp.route('/api/pico_status', methods=['GET'])
 def pico_status():
-    # Controlla lo stato senza lock prolungato
-    if not state.pico or not state.pico.is_open:
-        # Tenta la riconnessione in un thread separato
-        threading.Thread(target=serial_comms.open_pico).start()
-    
+    # Controlla se la connessione seriale è aperta
     ok = state.pico is not None and state.pico.is_open
     return jsonify(connected=ok)
 
@@ -120,9 +116,37 @@ def homing():
     if state.emergency_active:
         return jsonify(status='blocked'), 403
     
-    # Invia il comando e ritorna immediatamente
-    serial_comms.try_write({"cmd": "homing"})
-    return jsonify(status='started')
+    # Implementa la routine di homing sul Raspberry Pi
+    try:
+        target_angles = [10.0, 5.0, 0.0]  # Angoli di home per BASE, M1, M2
+        tolerance = 1.0  # Gradi di tolleranza
+        
+        # Per ogni giunto
+        for i, axis in enumerate(['BASE', 'M1', 'M2']):
+            while True:
+                with state.lock:
+                    current_angle = [state.angle_j1, state.angle_j2, state.angle_j3][i]
+                
+                diff = target_angles[i] - current_angle
+                if abs(diff) < tolerance:
+                    break
+                    
+                # Calcola la direzione
+                direction = 1 if diff > 0 else -1
+                
+                # Invia comando di movimento
+                serial_comms.try_write({
+                    'axis': axis,
+                    'mm': 0.1 * direction,  # Piccolo incremento
+                    'speed_pct': 30  # Velocità ridotta
+                })
+                
+                time.sleep(0.1)  # Breve pausa
+        
+        return jsonify(status='homed')
+    
+    except Exception as e:
+        return jsonify(status='error', error=str(e)), 500
 
 @bp.route('/api/stop', methods=['POST'])
 def stop():
@@ -283,7 +307,7 @@ def system_status():
         'emergency_active': state.emergency_active,
         'command_queue_length': len(state.command_queue),
         'last_update': state.last_update,
-        'fps': getattr(state, 'fps', 0)
+        'fps': state.fps
     }
     return jsonify(status)
 

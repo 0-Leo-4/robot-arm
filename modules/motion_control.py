@@ -1,6 +1,5 @@
 # modules/motion_control.py
 import re
-import math
 import time
 from . import serial_comms
 from .shared_state import state
