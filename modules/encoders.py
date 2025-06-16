@@ -22,21 +22,36 @@ class EncoderReader:
         """Seleziona il canale sul multiplexer"""
         try:
             self.bus.write_byte(TCA9548A_ADDR, channel)
-            time.sleep(0.001)
+            time.sleep(0.005)  # Aumenta il tempo di attesa
         except Exception as e:
             print(f"Channel error: {e}")
+            return False
+        return True
 
     def init_encoders(self):
         try:
-            # Verifica connessione al multiplexer
+            print("Inizializzazione encoder...")
+            
+            # Verifica connessione multiplexer
             self.set_channel(0)
             time.sleep(0.1)
             
-            for channel in CHANNELS:
-                self.set_channel(channel)
-                # Prova a leggere un dato per verificare la connessione
-                self.bus.read_byte_data(AS5600_ADDR, 0x00)
+            # Scansione dispositivi sui canali
+            for i, channel in enumerate(CHANNELS):
+                if not self.set_channel(channel):
+                    continue
                 
+                try:
+                    devices = self.bus.scan()
+                    print(f"Canale {i} ({hex(channel)}): Dispositivi trovati {[hex(d) for d in devices]}")
+                    
+                    if AS5600_ADDR in devices:
+                        print(f"  AS5600 rilevato all'indirizzo {hex(AS5600_ADDR)}")
+                    else:
+                        print(f"  AS5600 non rilevato sul canale {i}")
+                except Exception as e:
+                    print(f"Scan error: {e}")
+            
             self.encoders_initialized = True
             print("Encoders initialized successfully")
             return True
@@ -46,14 +61,15 @@ class EncoderReader:
 
     def read_raw_angle(self, channel):
         try:
-            self.set_channel(channel)
+            if not self.set_channel(channel):
+                return 0
+                
             raw = self.bus.read_word_data(AS5600_ADDR, AS5600_RAW_ANGLE_REG)
             # I dati sono in big-endian? Il AS5600 restituisce 12 bit
-            # Converti da little-endian a big-endian se necessario
             raw = ((raw << 8) & 0xFF00) | (raw >> 8)
             return raw & 0x0FFF
         except Exception as e:
-            print(f"Error reading channel {channel}: {e}")
+            print(f"Error reading channel {hex(channel)}: {e}")
             return 0
 
     def read_angle(self, channel_idx):

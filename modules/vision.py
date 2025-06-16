@@ -31,7 +31,8 @@ def assign_ids_to_circles(new_circles):
     cost = np.zeros((len(old_pts), len(new_pts)), dtype=float)
     for i, op in enumerate(old_pts):
         for j, np_ in enumerate(new_pts):
-            cost[i, j] = math.hypot(op["x"] - np_["x"], op["y"] - np_["y"])
+            # CORREZIONE: usa x_img e y_img invece di x e y
+            cost[i, j] = math.hypot(op["x_img"] - np_["x_img"], op["y_img"] - np_["y_img"])
 
     row_idx, col_idx = linear_sum_assignment(cost)
     assigned = {}
