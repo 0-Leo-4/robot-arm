@@ -15,7 +15,6 @@ def initialize_modules():
     
     # Poi inizializza LCD
     lcd.initialize()
-    lcd.set_status("SERVER START")
     
     # Avvia thread di gestione LCD
     threading.Thread(target=lcd.lcd_handler, daemon=True).start()

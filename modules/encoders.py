@@ -18,15 +18,25 @@ class EncoderReader:
         self.last_angles = [0.0, 0.0, 0.0]  # BASE, M1, M2
         self.encoders_initialized = False
 
+    def set_channel(self, channel):
+        """Seleziona il canale sul multiplexer"""
+        try:
+            self.bus.write_byte(TCA9548A_ADDR, channel)
+            time.sleep(0.001)
+        except Exception as e:
+            print(f"Channel error: {e}")
+
     def init_encoders(self):
         try:
             # Verifica connessione al multiplexer
-            self.bus.write_byte(TCA9548A_ADDR, 0)
+            self.set_channel(0)
             time.sleep(0.1)
+            
             for channel in CHANNELS:
-                self.bus.write_byte(TCA9548A_ADDR, channel)
+                self.set_channel(channel)
                 # Prova a leggere un dato per verificare la connessione
                 self.bus.read_byte_data(AS5600_ADDR, 0x00)
+                
             self.encoders_initialized = True
             print("Encoders initialized successfully")
             return True
@@ -36,7 +46,7 @@ class EncoderReader:
 
     def read_raw_angle(self, channel):
         try:
-            self.bus.write_byte(TCA9548A_ADDR, channel)
+            self.set_channel(channel)
             raw = self.bus.read_word_data(AS5600_ADDR, AS5600_RAW_ANGLE_REG)
             # I dati sono in big-endian? Il AS5600 restituisce 12 bit
             # Converti da little-endian a big-endian se necessario
