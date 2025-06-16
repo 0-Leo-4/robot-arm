@@ -2,8 +2,8 @@
 import math
 
 # Parametri cinematici (lunghezze dei bracci)
-L1 = 120  # Lunghezza primo braccio (base al gomito) in mm
-L2 = 100  # Lunghezza secondo braccio (gomito a polso) in mm
+L1 = 140  # Lunghezza primo braccio (base al gomito) in mm
+L2 = 140  # Lunghezza secondo braccio (gomito a polso) in mm
 
 def forward_kinematics(angles):
     """
