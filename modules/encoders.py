@@ -1,6 +1,7 @@
 # modules/encoders.py
 import time
 import smbus2
+import threading
 from .shared_state import state
 from . import kinematics
 
@@ -17,40 +18,47 @@ class EncoderReader:
         self.bus = smbus2.SMBus(1)  # I2C bus 1
         self.last_angles = [0.0, 0.0, 0.0]  # BASE, M1, M2
         self.encoders_initialized = False
+        self.lock = threading.Lock()
+        self.error_count = 0
+        self.max_errors = 10
 
     def set_channel(self, channel):
         """Seleziona il canale sul multiplexer"""
         try:
-            self.bus.write_byte(TCA9548A_ADDR, channel)
-            time.sleep(0.005)  # Aumenta il tempo di attesa
+            with self.lock:
+                self.bus.write_byte(TCA9548A_ADDR, channel)
+            time.sleep(0.01)  # Aumenta il tempo di attesa
+            return True
         except Exception as e:
             print(f"Channel error: {e}")
             return False
-        return True
+
+    def check_device_present(self, address):
+        """Verifica se un dispositivo è presente all'indirizzo specificato"""
+        try:
+            with self.lock:
+                self.bus.read_byte(address)
+            return True
+        except:
+            return False
 
     def init_encoders(self):
         try:
             print("Inizializzazione encoder...")
             
             # Verifica connessione multiplexer
-            self.set_channel(0)
-            time.sleep(0.1)
+            if not self.set_channel(0):
+                print("Errore selezione canale 0")
+                return False
             
-            # Scansione dispositivi sui canali
+            # Verifica presenza dispositivi su ogni canale
             for i, channel in enumerate(CHANNELS):
                 if not self.set_channel(channel):
+                    print(f"Errore selezione canale {i} ({hex(channel)})")
                     continue
                 
-                try:
-                    devices = self.bus.scan()
-                    print(f"Canale {i} ({hex(channel)}): Dispositivi trovati {[hex(d) for d in devices]}")
-                    
-                    if AS5600_ADDR in devices:
-                        print(f"  AS5600 rilevato all'indirizzo {hex(AS5600_ADDR)}")
-                    else:
-                        print(f"  AS5600 non rilevato sul canale {i}")
-                except Exception as e:
-                    print(f"Scan error: {e}")
+                present = self.check_device_present(AS5600_ADDR)
+                print(f"Canale {i} ({hex(channel)}): AS5600 {'presente' if present else 'assente'}")
             
             self.encoders_initialized = True
             print("Encoders initialized successfully")
@@ -64,12 +72,17 @@ class EncoderReader:
             if not self.set_channel(channel):
                 return 0
                 
-            raw = self.bus.read_word_data(AS5600_ADDR, AS5600_RAW_ANGLE_REG)
-            # I dati sono in big-endian? Il AS5600 restituisce 12 bit
-            raw = ((raw << 8) & 0xFF00) | (raw >> 8)
-            return raw & 0x0FFF
+            with self.lock:
+                # Legge 2 byte dal registro dell'angolo grezzo
+                raw_data = self.bus.read_i2c_block_data(AS5600_ADDR, AS5600_RAW_ANGLE_REG, 2)
+            
+            # Combina i 2 byte (big-endian)
+            raw_angle = (raw_data[0] << 8) | raw_data[1]
+            return raw_angle & 0x0FFF  # Mantiene solo 12 bit
         except Exception as e:
-            print(f"Error reading channel {hex(channel)}: {e}")
+            self.error_count += 1
+            if self.error_count <= self.max_errors:
+                print(f"Error reading channel {hex(channel)}: {e}")
             return 0
 
     def read_angle(self, channel_idx):
@@ -93,8 +106,9 @@ class EncoderReader:
 
     def run(self):
         while not self.encoders_initialized:
-            self.init_encoders()
-            time.sleep(1)
+            if not self.init_encoders():
+                print("Ritento inizializzazione encoder in 5 secondi...")
+                time.sleep(5)
         
         while True:
             try:
@@ -110,6 +124,9 @@ class EncoderReader:
                     state.y = y
                     state.z = z
                     
+                # Resetta il conteggio errori dopo una lettura valida
+                self.error_count = 0
+                
             except Exception as e:
                 print(f"Encoder update error: {e}")
             
