@@ -32,12 +32,16 @@ class SharedState:
         self.last_update = 0
         self.fps = 0.0
         
-        # New state variables for sequence control
+        # State variables for sequence control
         self.homing_done = False
         self.sequence_running = False
         self.sequence_interrupt = False
         self.gripper_offset = (0, 0, 10)  # (x_offset, y_offset, z_offset) in mm
         self.drop_position = (100, 0, 0)   # Default drop position (x, y, z) in mm
         self.home_angles = [10.0, 5.0, 0.0]  # Home angles for BASE, M1, M2
+        self.homing_direction = [1, -1, -1]  # Direzione homing (1=positivo, -1=negativo)
+        self.homing_speed = 30 # Velocità homing in mm/s
+        
+        self.angle_limits = [(-180, 180), (-90, 90), (-90, 90)]  # Limiti per BASE, M1, M2
 
 state = SharedState()

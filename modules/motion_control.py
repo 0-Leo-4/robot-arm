@@ -131,11 +131,17 @@ def execute_sequence():
         state.sequence_running = False
 
 def move_to_angles(target_angles):
-    """Move joints to target angles"""
+    """Move joints to target angles rispettando i limiti"""
     current_angles = [state.angle_j1, state.angle_j2, state.angle_j3]
     axes = ['BASE', 'M1', 'M2']
     
     for i, (current, target) in enumerate(zip(current_angles, target_angles)):
+        # Controlla i limiti angolari
+        min_angle, max_angle = state.angle_limits[i]
+        if target < min_angle or target > max_angle:
+            print(f"Target angle {target} for axis {axes[i]} is out of range [{min_angle}, {max_angle}]")
+            continue
+            
         diff = target - current
         if abs(diff) > 1.0:  # Only move if significant difference
             state.command_queue.append({

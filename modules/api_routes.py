@@ -117,10 +117,14 @@ def homing():
         return jsonify(status='blocked'), 403
     
     try:
+        # Usa gli angoli base definiti nello stato
         target_angles = state.home_angles
-        tolerance = 1.0
         
         for i, axis in enumerate(['BASE', 'M1', 'M2']):
+            # Ottieni la direzione di homing per questo asse (1 o -1)
+            direction = state.homing_direction[i]
+            tolerance = 1.0
+            
             while True:
                 with state.lock:
                     current_angle = [state.angle_j1, state.angle_j2, state.angle_j3][i]
@@ -129,11 +133,11 @@ def homing():
                 if abs(diff) < tolerance:
                     break
                     
-                direction = 1 if diff > 0 else -1
+                # Usa la direzione specificata invece del segno della differenza
                 serial_comms.try_write({
                     'axis': axis,
                     'mm': 0.1 * direction,
-                    'speed_pct': 30
+                    'speed_pct': state.homing_speed
                 })
                 time.sleep(0.1)
         
